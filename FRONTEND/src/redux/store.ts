@@ -1,17 +1,20 @@
-// Redux Store Configuration
-// Generated from Prompt 3
-
-import { configureStore } from '@reduxjs/toolkit'
-
-// Slices will be imported here
+import { configureStore } from '@reduxjs/toolkit';
+import authReducer from './slices/authSlice';
+import welfareReducer from './slices/welfareSlice';
+import internshipReducer from './slices/internshipSlice';
+import interviewReducer from './slices/interviewSlice';
+import documentReducer from './slices/documentSlice';
 
 export const store = configureStore({
   reducer: {
-    // Slices configured here
+    auth: authReducer,
+    welfare: welfareReducer,
+    internship: internshipReducer,
+    interview: interviewReducer,
+    document: documentReducer,
   },
-})
+});
 
-export type RootState = ReturnType<typeof store.getState>
-export type AppDispatch = typeof store.dispatch
-
-export default store
+type RootState = ReturnType<typeof store.getState>;
+export type { RootState };
+export type AppDispatch = typeof store.dispatch;
