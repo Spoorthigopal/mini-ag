@@ -1,0 +1,43 @@
+.card {
+  background: rgba(255,255,255,0.08);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  backdrop-filter: blur(8px);
+  transition: transform 0.2s, box-shadow 0.2s;
+  display:flex;
+  flex-direction:column;
+  gap:0.5rem;
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+}
+.header {
+  display:flex;
+  align-items:center;
+  gap:0.5rem;
+}
+.icon {
+  font-size:1.5rem;
+}
+.title {
+  font-size:1.125rem;
+  color:#fff;
+  margin:0;
+}
+.amount {
+  font-weight:500;
+  color:#ddd;
+}
+.eligibility {
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.25rem;
+}
+.provider, .deadline {
+  font-size:0.875rem;
+  color:#aaa;
+}
+.applyBtn {
+  margin-top:auto;
+}
