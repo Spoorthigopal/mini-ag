@@ -1,0 +1,218 @@
+STU-MINI-COMPLETE/
+│
+├── FRONTEND/
+│   ├── src/
+│   │   ├── assets/
+│   │   │   ├── fonts/
+│   │   │   │   └── .gitkeep
+│   │   │   └── images/
+│   │   │       └── .gitkeep
+│   │   │
+│   │   ├── components/
+│   │   │   ├── Auth/
+│   │   │   │   ├── LoginForm.tsx
+│   │   │   │   ├── RegisterForm.tsx
+│   │   │   │   └── auth.module.css
+│   │   │   │
+│   │   │   ├── Layout/
+│   │   │   │   ├── Navbar.tsx
+│   │   │   │   ├── Sidebar.tsx
+│   │   │   │   ├── Footer.tsx
+│   │   │   │   ├── MainLayout.tsx
+│   │   │   │   ├── HeroSection.tsx
+│   │   │   │   ├── navbar.module.css
+│   │   │   │   └── sidebar.module.css
+│   │   │   │
+│   │   │   ├── Common/
+│   │   │   │   ├── Button.tsx
+│   │   │   │   ├── Card.tsx
+│   │   │   │   ├── Input.tsx
+│   │   │   │   ├── Badge.tsx
+│   │   │   │   ├── LoadingSpinner.tsx
+│   │   │   │   ├── ErrorBoundary.tsx
+│   │   │   │   ├── NoData.tsx
+│   │   │   │   ├── Modal.tsx
+│   │   │   │   ├── button.module.css
+│   │   │   │   ├── card.module.css
+│   │   │   │   ├── input.module.css
+│   │   │   │   ├── badge.module.css
+│   │   │   │   ├── spinner.module.css
+│   │   │   │   └── modal.module.css
+│   │   │   │
+│   │   │   ├── Welfare/
+│   │   │   │   ├── SchemeCard.tsx
+│   │   │   │   ├── FilterPanel.tsx
+│   │   │   │   ├── SchemesList.tsx
+│   │   │   │   ├── WelfareChat.tsx
+│   │   │   │   └── welfare.module.css
+│   │   │   │
+│   │   │   ├── Internships/
+│   │   │   │   ├── JobCard.tsx
+│   │   │   │   ├── FilterPanel.tsx
+│   │   │   │   ├── ResumeUploader.tsx
+│   │   │   │   ├── JobsList.tsx
+│   │   │   │   ├── InternshipChat.tsx
+│   │   │   │   └── internships.module.css
+│   │   │   │
+│   │   │   ├── Interview/
+│   │   │   │   ├── JobSelector.tsx
+│   │   │   │   ├── MockInterview.tsx
+│   │   │   │   ├── InterviewCoach.tsx
+│   │   │   │   └── interview.module.css
+│   │   │   │
+│   │   │   └── DigiLocker/
+│   │   │       ├── UploadZone.tsx
+│   │   │       ├── DocumentCard.tsx
+│   │   │       ├── DocumentGrid.tsx
+│   │   │       ├── DocumentManagement.tsx
+│   │   │       └── digilocker.module.css
+│   │   │
+│   │   ├── pages/
+│   │   │   ├── Dashboard.tsx
+│   │   │   │
+│   │   │   ├── Welfare/
+│   │   │   │   ├── SchemesPage.tsx
+│   │   │   │   └── ChatPage.tsx
+│   │   │   │
+│   │   │   ├── Internships/
+│   │   │   │   ├── JobsPage.tsx
+│   │   │   │   └── ChatPage.tsx
+│   │   │   │
+│   │   │   ├── Interview/
+│   │   │   │   └── CoachPage.tsx
+│   │   │   │
+│   │   │   ├── DigiLocker/
+│   │   │   │   └── DocumentsPage.tsx
+│   │   │   │
+│   │   │   └── Auth/
+│   │   │       ├── LoginPage.tsx
+│   │   │       ├── RegisterPage.tsx
+│   │   │       └── NotFoundPage.tsx
+│   │   │
+│   │   ├── redux/
+│   │   │   ├── store.ts
+│   │   │   └── slices/
+│   │   │       ├── authSlice.ts
+│   │   │       ├── welfareSlice.ts
+│   │   │       ├── internshipSlice.ts
+│   │   │       ├── interviewSlice.ts
+│   │   │       └── documentSlice.ts
+│   │   │
+│   │   ├── services/
+│   │   │   ├── api.ts
+│   │   │   └── authService.ts
+│   │   │
+│   │   ├── styles/
+│   │   │   ├── variables.css
+│   │   │   ├── globals.css
+│   │   │   └── animations.css
+│   │   │
+│   │   ├── utils/
+│   │   │   ├── constants.ts
+│   │   │   ├── helpers.ts
+│   │   │   └── validators.ts
+│   │   │
+│   │   ├── hooks/
+│   │   │   ├── useAuth.ts
+│   │   │   └── useApi.ts
+│   │   │
+│   │   ├── App.tsx
+│   │   ├── main.tsx
+│   │   └── vite-env.d.ts
+│   │
+│   ├── public/
+│   │   ├── index.html
+│   │   └── favicon.ico
+│   │
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   ├── tsconfig.app.json
+│   ├── tsconfig.node.json
+│   ├── .env.example
+│   ├── .gitignore
+│   ├── README.md
+│   └── index.html
+│
+├── BACKEND/
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── database.py
+│   │   │
+│   │   ├── auth/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── routes.py
+│   │   │   └── utils.py
+│   │   │
+│   │   ├── welfare/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── routes.py
+│   │   │   ├── service.py
+│   │   │   └── rag.py
+│   │   │
+│   │   ├── internships/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── routes.py
+│   │   │   ├── service.py
+│   │   │   ├── rag.py
+│   │   │   ├── jsearch_client.py
+│   │   │   └── resume_parser.py
+│   │   │
+│   │   ├── interview/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── routes.py
+│   │   │   ├── service.py
+│   │   │   └── chains.py
+│   │   │
+│   │   ├── digilocker/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── routes.py
+│   │   │   ├── service.py
+│   │   │   └── encryption.py
+│   │   │
+│   │   └── shared/
+│   │       ├── __init__.py
+│   │       ├── embeddings.py
+│   │       ├── llm.py
+│   │       ├── exceptions.py
+│   │       ├── dependencies.py
+│   │       ├── scheduler.py
+│   │       └── models.py
+│   │
+│   ├── migrations/
+│   │   ├── versions/
+│   │   │   └── .gitkeep
+│   │   ├── env.py
+│   │   ├── script.py.mako
+│   │   └── alembic.ini
+│   │
+│   ├── scripts/
+│   │   ├── __init__.py
+│   │   ├── seed_welfare_schemes.py
+│   │   ├── seed_sample_jobs.py
+│   │   └── init_db.py
+│   │
+│   ├── requirements.txt
+│   ├── .env.example
+│   ├── .gitignore
+│   ├── README.md
+│   └── main.py
+│
+└── DOCS/
+    ├── README.md
+    ├── SETUP.md
+    ├── API_DOCS.md
+    ├── INTEGRATION_GUIDE.md
+    └── DESIGN_SYSTEM.md
