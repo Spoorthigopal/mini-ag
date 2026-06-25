@@ -1,25 +1,26 @@
 {
-   name: grad-sphere-frontend,
-  version: 0.1.0,
-  private: true,
-  scripts: {
-    dev: vite,
-    build: vite build,
-    preview: vite preview
+  "name": "grad-sphere-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
   },
-  dependencies: {
-    react: ^19.0.0,
-    react-dom: ^19.0.0,
-    @reduxjs/toolkit: ^1.9.5,
-    react-redux: ^9.0.0,
-    axios: ^1.7.2,
-    lucide-react: ^0.378.0,
-    react-router-dom: ^6.22.2,
-    dotenv: ^16.4.5
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@reduxjs/toolkit": "^1.9.5",
+    "react-redux": "^8.0.2",
+    "axios": "^1.7.2",
+    "lucide-react": "^0.378.0",
+    "react-router-dom": "^6.22.2",
+    "dotenv": "^16.4.5",
+    "typescript": "^5.4.2",
+    "vite": "^5.2.0"
   },
-  devDependencies: {
-    typescript: ^5.4.2,
-    vite: ^5.2.0,
-    @vitejs/plugin-react: ^4.3.1
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1"
   }
 }

@@ -1,88 +1,117 @@
-# STU-MINI - University Student Assistance Platform
+# STU-MINI — AI-Powered University Student Platform
 
-A complete AI-powered platform helping university students with scholarships, internships, interview preparation, and document management.
+A complete full-stack AI platform helping Indian university students discover scholarships, find internships, prepare for interviews, and securely store academic documents.
+
+---
 
 ## 📁 Project Structure
 
 ```
-STU-MINI-COMPLETE/
-├── FRONTEND/          # React 19 + TypeScript + Vite
-├── BACKEND/           # FastAPI + PostgreSQL
+STU-MINI/
+├── FRONTEND/          # React 19 + TypeScript + Vite + Redux Toolkit
+├── BACKEND/           # FastAPI + PostgreSQL + Pinecone + LangChain
 └── DOCS/              # Complete documentation
+    ├── SETUP.md           ← Step-by-step setup
+    ├── API_DOCS.md        ← Full API reference + curl examples
+    ├── INTEGRATION_GUIDE.md ← Frontend-backend contract
+    └── DESIGN_SYSTEM.md   ← Design system specs
 ```
 
+---
+
 ## 🚀 Quick Start
+
+### Backend
+```bash
+cd BACKEND
+python -m venv venv && venv\Scripts\activate   # Windows
+pip install -r requirements.txt
+cp .env.example .env  # Fill in API keys
+alembic -c migrations/alembic.ini upgrade head
+python scripts/init_db.py
+uvicorn app.main:app --reload
+# → Runs on http://localhost:8000
+```
 
 ### Frontend
 ```bash
 cd FRONTEND
 npm install
-cp .env.example .env
+cp .env.example .env  # Set VITE_API_BASE_URL=http://localhost:8000
 npm run dev
+# → Runs on http://localhost:5173
 ```
 
-### Backend
-```bash
-cd BACKEND
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env
-# Configure PostgreSQL and API keys in .env
-alembic upgrade head
-python scripts/seed_welfare_schemes.py
-uvicorn app.main:app --reload
-```
+---
 
-## 📋 Modules
+## 🧠 Modules
 
-1. **Welfare Scheme Navigator** - RAG-powered scholarship discovery
-2. **Internship Portal** - Job listings with resume matching
-3. **AI Interview Coach** - LangChain-powered interview prep
-4. **DigiLocker** - Encrypted document storage
+| Module | Description | Tech |
+|---|---|---|
+| **Welfare Navigator** | RAG-powered scholarship discovery | Pinecone + Gemini |
+| **Internship Portal** | Live job listings + resume matching | JSearch + NVIDIA NIM |
+| **AI Interview Coach** | Mock interviews with real-time feedback | LangChain + Gemini |
+| **DigiLocker** | Encrypted academic document vault | AES-256-GCM |
+
+---
 
 ## 🛠 Tech Stack
 
 **Frontend:**
 - React 19, TypeScript, Vite
-- Redux Toolkit, Axios, Lucide-react
+- Redux Toolkit, Axios
 - Dark glassmorphism design
 
 **Backend:**
-- FastAPI, PostgreSQL, SQLAlchemy
-- Pinecone (vector DB), LangChain
-- Google Gemini 2.0 Flash API
-- NVIDIA NIM (embeddings)
+- FastAPI, PostgreSQL, SQLAlchemy 2.0
+- Alembic (migrations)
+- Google Gemini 2.0 Flash (AI/LLM)
+- NVIDIA NIM `nvidia/nv-embed-v2` (1024-dim embeddings)
+- Pinecone (vector search)
+- LangChain (RAG pipelines)
+- JSearch via RapidAPI (job scraping)
+- AES-256-GCM encryption (DigiLocker)
+- APScheduler (daily background jobs)
+
+---
+
+## 🔑 Required API Keys
+
+| Service | Where to Get |
+|---|---|
+| Google Gemini | https://aistudio.google.com/app/apikey |
+| NVIDIA NIM | https://build.nvidia.com |
+| Pinecone | https://app.pinecone.io |
+| JSearch | https://rapidapi.com (letscrape-6bRBa3QguO5/jsearch) |
+
+---
+
+## 🔐 Security Features
+
+- JWT authentication (HS256, 60-min expiry)
+- AES-256-GCM client-side encryption for documents
+- PBKDF2 key derivation
+- Constant-time admin key comparison
+- Per-IP rate limiting (5 req/min)
+- CORS origin allowlist
+
+---
 
 ## 📚 Documentation
 
-See the `DOCS/` folder for:
-- **SETUP.md** - Installation guide
-- **API_DOCS.md** - API reference
-- **INTEGRATION_GUIDE.md** - Integration details
-- **DESIGN_SYSTEM.md** - Design specifications
+| File | Contents |
+|---|---|
+| [SETUP.md](DOCS/SETUP.md) | Step-by-step installation, migration, seeding |
+| [API_DOCS.md](DOCS/API_DOCS.md) | All endpoints with curl examples |
+| [INTEGRATION_GUIDE.md](DOCS/INTEGRATION_GUIDE.md) | Frontend-backend contract, JWT flow |
+| [DESIGN_SYSTEM.md](DOCS/DESIGN_SYSTEM.md) | UI components, tokens |
 
-## 🔐 Security
+---
 
-- JWT authentication
-- AES-256-GCM encryption (DigiLocker)
-- PBKDF2 key derivation
-- CORS enabled
-- Input validation (Pydantic)
+## 🏃 Running the Full Stack
 
-## 📈 Next Steps
-
-1. Configure environment variables (.env files)
-2. Setup PostgreSQL database
-3. Install dependencies (frontend + backend)
-4. Follow SETUP.md in DOCS folder
-5. Run frontend and backend servers
-6. Execute build prompts to populate code
-
-## 📝 Build Instructions
-
-This is a skeleton structure. Use the provided prompts to generate all code:
-1. Frontend: 14 prompts (sequential)
-2. Backend: 11 prompts (sequential)
-
-See DOCS/SETUP.md for detailed build workflow.
+1. Start PostgreSQL
+2. Start backend: `uvicorn app.main:app --reload` (port 8000)
+3. Start frontend: `npm run dev` (port 5173)
+4. Open http://localhost:5173
+5. API docs at http://localhost:8000/docs

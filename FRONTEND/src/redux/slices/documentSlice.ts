@@ -12,14 +12,16 @@ export interface Document {
 
 interface DocumentState {
   documents: Document[];
-  uploading: boolean;
+  selectedCategory: 'Academic' | 'Professional' | 'Identity' | 'Financial' | 'All';
   uploadProgress: number; // 0-100
+  uploading?: boolean;
 }
 
 const initialState: DocumentState = {
   documents: [],
-  uploading: false,
+  selectedCategory: 'All',
   uploadProgress: 0,
+  uploading: false,
 };
 
 const documentSlice = createSlice({
@@ -32,20 +34,24 @@ const documentSlice = createSlice({
     deleteDocument(state, action: PayloadAction<string>) {
       state.documents = state.documents.filter((doc) => doc.id !== action.payload);
     },
-    setUploading(state, action: PayloadAction<boolean>) {
-      state.uploading = action.payload;
+    setSelectedCategory(state, action: PayloadAction<DocumentState['selectedCategory']>) {
+      state.selectedCategory = action.payload;
     },
     setUploadProgress(state, action: PayloadAction<number>) {
       state.uploadProgress = action.payload;
     },
+    setUploading(state, action: PayloadAction<boolean>) {
+      state.uploading = action.payload;
+    },
     clearAll(state) {
       state.documents = [];
-      state.uploading = false;
+      state.selectedCategory = 'All';
       state.uploadProgress = 0;
+      state.uploading = false;
     },
   },
 });
 
-export const { addDocument, deleteDocument, setUploading, setUploadProgress, clearAll } =
+export const { addDocument, deleteDocument, setSelectedCategory, setUploadProgress, setUploading, clearAll } =
   documentSlice.actions;
 export default documentSlice.reducer;

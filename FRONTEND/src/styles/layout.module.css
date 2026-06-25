@@ -1,0 +1,25 @@
+.layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(circle at 50% 50%, #0d1224 0%, #070913 100%);
+  color: #ffffff;
+}
+
+.mainContent {
+  margin-top: 4.5rem;
+  margin-left: 260px;
+  padding: 2rem;
+  flex-grow: 1;
+  transition: margin-left 0.3s ease;
+  min-height: calc(100vh - 4.5rem);
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 768px) {
+  .mainContent {
+    margin-left: 0;
+    padding: 1.5rem 1rem;
+  }
+}

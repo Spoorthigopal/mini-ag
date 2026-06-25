@@ -1,5 +1,5 @@
-import React from  react;
-import styles from ./HeroSection.module.css;
+import React from 'react';
+import styles from './HeroSection.module.css';
 
 interface HeroSectionProps {
   title: string;
@@ -7,12 +7,12 @@ interface HeroSectionProps {
   children?: React.ReactNode;
 }
 
-const HeroSection: React.FC<HeroSectionProps> = ({ title, subtitle, children }) => (
+export const HeroSection: React.FC<HeroSectionProps> = ({ title, subtitle, children }) => (
   <section className={styles.hero}>
     <div className={styles.orbContainer}>
-      <div className={styles.orb} />
-      <div className={styles.orb} />
-      <div className={styles.orb} />
+      <div className={`${styles.orb} ${styles.orb1}`} />
+      <div className={`${styles.orb} ${styles.orb2}`} />
+      <div className={`${styles.orb} ${styles.orb3}`} />
     </div>
     <div className={styles.content}>
       <h1 className={styles.title}>{title}</h1>

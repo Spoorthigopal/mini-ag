@@ -3,41 +3,66 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 export interface ChatMessage {
   sender: 'user' | 'bot';
   text: string;
+  timestamp: string;
+}
+
+export interface Job {
+  id: string;
+  title: string;
+  company: string;
+  description: string;
 }
 
 interface InterviewState {
-  selectedJobId: string | null;
-  started: boolean;
-  chatMessages: ChatMessage[];
+  sessionId: string | null;
+  messages: ChatMessage[];
+  currentJob: Job | null;
+  feedback: {
+    score: number;
+    strengths: string[];
+    improvements: string[];
+    summary: string;
+  } | null;
+  isActive: boolean;
 }
 
 const initialState: InterviewState = {
-  selectedJobId: null,
-  started: false,
-  chatMessages: [],
+  sessionId: null,
+  messages: [],
+  currentJob: null,
+  feedback: null,
+  isActive: false,
 };
 
 const interviewSlice = createSlice({
   name: 'interview',
   initialState,
   reducers: {
-    setSelectedJob(state, action: PayloadAction<string>) {
-      state.selectedJobId = action.payload;
+    startSession(state, action: PayloadAction<{ sessionId: string; job: Job }>) {
+      state.sessionId = action.payload.sessionId;
+      state.currentJob = action.payload.job;
+      state.messages = [];
+      state.feedback = null;
+      state.isActive = true;
     },
-    startInterview(state) {
-      state.started = true;
-      state.chatMessages = [];
+    addMessage(state, action: PayloadAction<ChatMessage>) {
+      state.messages.push(action.payload);
     },
-    addChatMessage(state, action: PayloadAction<ChatMessage>) {
-      state.chatMessages.push(action.payload);
+    setFeedback(state, action: PayloadAction<InterviewState['feedback']>) {
+      state.feedback = action.payload;
     },
-    clearChat(state) {
-      state.chatMessages = [];
-      state.started = false;
-      state.selectedJobId = null;
+    endSession(state) {
+      state.isActive = false;
+    },
+    clearInterview(state) {
+      state.sessionId = null;
+      state.messages = [];
+      state.currentJob = null;
+      state.feedback = null;
+      state.isActive = false;
     },
   },
 });
 
-export const { setSelectedJob, startInterview, addChatMessage, clearChat } = interviewSlice.actions;
+export const { startSession, addMessage, setFeedback, endSession, clearInterview } = interviewSlice.actions;
 export default interviewSlice.reducer;

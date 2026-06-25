@@ -2,46 +2,53 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
 }
 
 .grid {
   display: grid;
-  gap: 1.5rem;
+  gap: 2rem;
   width: 100%;
   max-width: 1200px;
-  padding: 2rem;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  margin-top: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .card {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(8px);
-  border-radius: 12px;
-  padding: 1.5rem;
-  text-align: center;
-  transition: transform 0.3s, box-shadow 0.3s;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 1.25rem;
+  padding: 2rem !important;
 }
 
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 16px rgba(0,0,0,0.2);
-}
-
-.icon {
-  font-size: 2.5rem;
-  margin-bottom: 0.75rem;
+.iconWrapper {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
 }
 
 .title {
   font-size: 1.25rem;
-  margin: 0.5rem 0;
-  color: #fff;
+  font-weight: 700;
+  margin: 0 0 0.75rem 0;
+  color: #ffffff;
 }
 
 .desc {
-  font-size: 0.9rem;
-  opacity: 0.85;
-  margin-bottom: 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0 0 2rem 0;
+  flex-grow: 1;
 }
 
 .button {

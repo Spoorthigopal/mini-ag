@@ -1,5 +1,5 @@
 import React from 'react';
-import styles from './Button.module.css';
+import styles from './button.module.css';
 import { Loader2 } from 'lucide-react';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger';
@@ -28,7 +28,7 @@ export const Button: React.FC<ButtonProps> = ({
       disabled={isDisabled}
       {...rest}
     >
-      {loading && <Loader2 size={16} className="spin" />}
+      {loading && <Loader2 size={16} className={styles.spin} />}
       {children}
     </button>
   );

@@ -2,142 +2,234 @@
 
 Complete step-by-step setup instructions for the entire platform.
 
+---
+
 ## Prerequisites
 
-- Node.js 18+
-- Python 3.10+
-- PostgreSQL 14+
-- Git
+| Tool | Min Version |
+|---|---|
+| Node.js | 18+ |
+| Python | 3.10+ |
+| PostgreSQL | 14+ |
+| Git | Latest |
 
-## Frontend Setup
+---
 
-### 1. Navigate to Frontend
+## 🖥 Frontend Setup
+
+### 1. Navigate to frontend
 ```bash
 cd FRONTEND
 ```
 
-### 2. Install Dependencies
+### 2. Install dependencies
 ```bash
 npm install
 ```
 
-### 3. Configure Environment
+### 3. Configure environment
 ```bash
 cp .env.example .env
-# Edit .env and set:
-# VITE_API_BASE_URL=http://localhost:8000/api
+```
+Edit `.env` and set:
+```env
+VITE_API_BASE_URL=http://localhost:8000
 ```
 
-### 4. Start Development Server
+### 4. Start development server
 ```bash
 npm run dev
-# Frontend runs on http://localhost:5173
+# Frontend runs at: http://localhost:5173
 ```
 
-## Backend Setup
+---
 
-### 1. Navigate to Backend
+## ⚙️ Backend Setup
+
+### 1. Navigate to backend
 ```bash
 cd BACKEND
 ```
 
-### 2. Create Virtual Environment
+### 2. Create virtual environment
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Activate (Windows):
+venv\Scripts\activate
+
+# Activate (macOS/Linux):
+source venv/bin/activate
 ```
 
-### 3. Install Dependencies
+### 3. Install dependencies
 ```bash
-pip install -r requirements.txt --break-system-packages
+pip install -r requirements.txt
 ```
+
+> **Note:** If you encounter version conflicts, install key packages manually:
+> ```bash
+> pip install pydantic-settings python-jose[cryptography] email-validator
+> ```
 
 ### 4. Setup PostgreSQL
 
-Create database:
+**Install PostgreSQL** and create the database:
+```bash
+psql -U postgres
+```
 ```sql
-CREATE DATABASE stu_mini_db;
+CREATE DATABASE studhelper;
+\q
 ```
 
-### 5. Configure Environment
+### 5. Configure environment
 ```bash
 cp .env.example .env
-# Edit .env with:
-# - DATABASE_URL (PostgreSQL connection)
-# - GEMINI_API_KEY
-# - NVIDIA_NIM_API_KEY
-# - PINECONE_API_KEY & PINECONE_ENVIRONMENT
-# - JSEARCH_API_KEY
+```
+
+Edit `.env` and fill in **all required values**:
+
+```env
+# Database
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/studhelper
+
+# JWT (must be 32+ characters)
+SECRET_KEY=your-very-long-random-secret-key-at-least-32-chars
+
+# API Keys
+GOOGLE_API_KEY=your_google_gemini_api_key
+NVIDIA_API_KEY=your_nvidia_nim_api_key
+PINECONE_API_KEY=your_pinecone_api_key
+PINECONE_INDEX_NAME=studhelper
+JSEARCH_API_KEY=your_jsearch_rapidapi_key
+ADMIN_API_KEY=your_admin_secret_key
 ```
 
 ### 6. Run Database Migrations
+
 ```bash
-alembic upgrade head
+# Run Alembic migrations (creates all tables)
+alembic -c migrations/alembic.ini upgrade head
 ```
 
-### 7. Seed Welfare Schemes (Optional)
+> **Troubleshooting:** If alembic.ini is not found:
+> ```bash
+> cd migrations
+> alembic upgrade head
+> ```
+
+### 7. Seed Data (PostgreSQL + Pinecone)
+
 ```bash
+# Option A — Seed everything at once (recommended):
+python scripts/init_db.py
+
+# Option B — Seed individually:
 python scripts/seed_welfare_schemes.py
+python scripts/seed_sample_jobs.py
 ```
+
+> **Note:** Seeding requires live API keys for NVIDIA NIM (embeddings) and Pinecone. If keys are missing, DB entries are created but Pinecone upsertion is skipped with a warning.
 
 ### 8. Start Backend Server
+
 ```bash
-uvicorn app.main:app --reload
-# Backend runs on http://localhost:8000
-# API docs: http://localhost:8000/docs
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## Building with Prompts
+| URL | Purpose |
+|---|---|
+| http://localhost:8000/health | Health check |
+| http://localhost:8000/docs | Swagger UI |
+| http://localhost:8000/redoc | ReDoc |
 
-After setup, execute the build prompts in sequence:
+---
 
-### Frontend (14 prompts)
-1. Prompt 1: Project Setup & Folder Structure
-2. Prompt 2: Global Styles & CSS Variables
-3. Prompt 3: Redux Store & Slices
-... (continue through Prompt 14)
+## 🔑 Getting API Keys
 
-### Backend (11 prompts)
-15. Prompt 15: FastAPI Project Setup
-16. Prompt 16: Database Setup & Models
-... (continue through Prompt 25)
+| Service | URL | Notes |
+|---|---|---|
+| Google Gemini | https://aistudio.google.com/app/apikey | Free tier available |
+| NVIDIA NIM | https://build.nvidia.com | Register for API access |
+| Pinecone | https://app.pinecone.io | Free starter tier |
+| JSearch | https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch | Free 500 req/month |
 
-## Troubleshooting
+---
 
-### PostgreSQL Connection Error
+## 🗂 Pinecone Index Setup
+
+Create a Pinecone index before seeding:
+
+1. Login to https://app.pinecone.io
+2. Create an index with:
+   - **Name:** `studhelper`
+   - **Dimensions:** `1024` (for NVIDIA NV-Embed-v2)
+   - **Metric:** `cosine`
+   - **Cloud:** Serverless (AWS / GCP)
+
+---
+
+## 🔄 Re-running Migrations
+
+To reset and re-apply all migrations:
 ```bash
-# Check PostgreSQL is running
-psql -U postgres -d stu_mini_db
+# Downgrade to base (drops all tables)
+alembic -c migrations/alembic.ini downgrade base
 
-# Update DATABASE_URL in .env if needed
+# Re-apply all migrations
+alembic -c migrations/alembic.ini upgrade head
+
+# Re-seed data
+python scripts/init_db.py
 ```
 
-### API Key Issues
-- Ensure all API keys in .env are valid
-- Check Pinecone index names match configuration
-- Verify JSearch API key with RapidAPI
+---
 
-### Frontend Build Issues
+## 🚦 Verification Checklist
+
+| Step | Check |
+|---|---|
+| Frontend | http://localhost:5173 loads the app |
+| Backend health | `curl http://localhost:8000/health` → `{"status":"healthy"}` |
+| Auth works | POST `/api/auth/register` returns a JWT token |
+| Welfare schemes | GET `/api/welfare/schemes` returns scheme list |
+| DB connected | No `OperationalError` in backend logs |
+
+---
+
+## 🛠 Troubleshooting
+
+### PostgreSQL Connection Refused
 ```bash
-rm -rf node_modules package-lock.json
-npm install
-npm run build
+# Check if PostgreSQL is running
+pg_isready -h localhost -p 5432
+
+# Start PostgreSQL (Windows)
+net start postgresql-x64-14
+
+# Start PostgreSQL (macOS)
+brew services start postgresql
 ```
 
-### Backend Import Errors
+### ModuleNotFoundError: pydantic_settings
 ```bash
-# Reinstall with break-system-packages flag
-pip install -r requirements.txt --break-system-packages
+pip install pydantic-settings
 ```
 
-## Verification
+### ImportError: email-validator
+```bash
+pip install email-validator
+```
 
-Frontend running:
-- http://localhost:5173 should load the app
+### Pinecone 404 / Index Not Found
+Make sure your index name in `.env` matches the one created in Pinecone dashboard:
+```env
+PINECONE_INDEX_NAME=studhelper
+```
 
-Backend running:
-- http://localhost:8000/health should return `{"status": "healthy"}`
-- http://localhost:8000/docs shows interactive API docs
-
-Both connected:
-- Login form should communicate with backend
+### Frontend CORS Errors
+Verify the backend allows the frontend origin in `app/config.py`:
+```python
+CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+```

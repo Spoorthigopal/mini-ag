@@ -1,7 +1,7 @@
-import React from  react;
-import styles from ./SchemeCard.module.css;
-import Button from ../../Common/Button;
-import Badge from ../../Common/Badge;
+import React from 'react';
+import styles from './SchemeCard.module.css';
+import { Button } from '../Common/Button';
+import { Badge } from '../Common/Badge';
 
 interface SchemeCardProps {
   id: string;
@@ -14,7 +14,7 @@ interface SchemeCardProps {
   onApply: (id: string) => void;
 }
 
-const SchemeCard: React.FC<SchemeCardProps> = ({
+export const SchemeCard: React.FC<SchemeCardProps> = ({
   id,
   name,
   amount,
@@ -30,15 +30,17 @@ const SchemeCard: React.FC<SchemeCardProps> = ({
         {icon && <span className={styles.icon}>{icon}</span>}
         <h3 className={styles.title}>{name}</h3>
       </div>
-      <p className={styles.amount}>Amount: {amount}</p>
+      <p className={styles.amount}>Amount: <strong>{amount}</strong></p>
       <div className={styles.eligibility}>
         {eligibility.map((tag) => (
-          <Badge key={tag} variant=cyan size=sm>{tag}</Badge>
+          <Badge key={tag} variant="info" size="sm">{tag}</Badge>
         ))}
       </div>
       {provider && <p className={styles.provider}>Provider: {provider}</p>}
       {deadline && <p className={styles.deadline}>Deadline: {deadline}</p>}
-      <Button variant=primary onClick={() => onApply(id)} className={styles.applyBtn}>Apply</Button>
+      <Button variant="primary" onClick={() => onApply(id)} className={styles.applyBtn}>
+        Apply Now
+      </Button>
     </div>
   );
 };

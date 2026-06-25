@@ -8,7 +8,14 @@ export interface Scheme {
   eligibility: string[];
   provider?: string;
   deadline?: string;
-  icon?: React.ReactNode;
+  category?: string;
+  description?: string;
+}
+
+export interface ChatMessage {
+  sender: 'user' | 'bot';
+  text: string;
+  timestamp: string;
 }
 
 interface WelfareState {
@@ -20,6 +27,8 @@ interface WelfareState {
     deadline: string;
     provider: string[];
   };
+  chatHistory: ChatMessage[];
+  selectedScheme: Scheme | null;
 }
 
 const initialState: WelfareState = {
@@ -31,6 +40,8 @@ const initialState: WelfareState = {
     deadline: '',
     provider: [],
   },
+  chatHistory: [],
+  selectedScheme: null,
 };
 
 const welfareSlice = createSlice({
@@ -43,8 +54,17 @@ const welfareSlice = createSlice({
     setFilters(state, action: PayloadAction<WelfareState['filters']>) {
       state.filters = action.payload;
     },
+    setSelectedScheme(state, action: PayloadAction<Scheme | null>) {
+      state.selectedScheme = action.payload;
+    },
+    addWelfareChatMessage(state, action: PayloadAction<ChatMessage>) {
+      state.chatHistory.push(action.payload);
+    },
+    clearWelfareChat(state) {
+      state.chatHistory = [];
+    },
   },
 });
 
-export const { setSchemes, setFilters } = welfareSlice.actions;
+export const { setSchemes, setFilters, setSelectedScheme, addWelfareChatMessage, clearWelfareChat } = welfareSlice.actions;
 export default welfareSlice.reducer;
