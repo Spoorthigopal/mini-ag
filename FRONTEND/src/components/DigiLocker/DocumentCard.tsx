@@ -1,7 +1,7 @@
 import React from 'react';
 import styles from './digilocker.module.css';
-import Button from '../Common/Button';
-import Badge from '../Common/Badge';
+import { Button } from '../Common/Button';
+import { Badge } from '../Common/Badge';
 
 interface DocumentCardProps {
     name: string;
