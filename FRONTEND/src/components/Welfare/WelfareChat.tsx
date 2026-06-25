@@ -11,6 +11,7 @@ export const WelfareChat: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasInitialized = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -22,10 +23,11 @@ export const WelfareChat: React.FC = () => {
 
   useEffect(() => {
     // Add initial message if history is empty
-    if (chatHistory.length === 0) {
+    if (chatHistory.length === 0 && !hasInitialized.current) {
+      hasInitialized.current = true;
       dispatch(addWelfareChatMessage({
         sender: 'bot',
-        text: "Hello! I'm your STU-MINI Welfare Assistant. Describe your academic profile (e.g. Undergraduate, SC/ST, Minority, General) and I'll recommend the best schemes and scholarships for you!",
+        text: "Hello! I'm your GradSphere Welfare Assistant. Describe your academic profile (e.g. Undergraduate, SC/ST, Minority, General) and I'll recommend the best schemes and scholarships for you!",
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }));
     }

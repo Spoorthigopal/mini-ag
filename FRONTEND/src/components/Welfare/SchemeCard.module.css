@@ -39,5 +39,22 @@
   color:#aaa;
 }
 .applyBtn {
-  margin-top:auto;
+  margin-top: auto;
+  width: 100%;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: linear-gradient(135deg, #ff2d55 0%, #d81b43 100%) !important;
+  color: white !important;
+  border: none !important;
+  box-shadow: 0 4px 10px rgba(255, 45, 85, 0.3) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.applyBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(255, 45, 85, 0.5) !important;
+  filter: brightness(1.1);
 }

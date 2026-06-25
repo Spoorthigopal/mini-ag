@@ -12,6 +12,7 @@ export const InternshipChat: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasInitialized = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -22,10 +23,11 @@ export const InternshipChat: React.FC = () => {
   }, [chatHistory, isTyping]);
 
   useEffect(() => {
-    if (chatHistory.length === 0) {
+    if (chatHistory.length === 0 && !hasInitialized.current) {
+      hasInitialized.current = true;
       dispatch(addInternshipChatMessage({
         sender: 'bot',
-        text: "Hello! I'm your STU-MINI Internship & Resume Assistant. Upload your resume in the uploader tab, or tell me what roles you're searching for (e.g. Frontend, Data Analyst), and I will provide tailored job advice and resume enhancement tips!",
+        text: "Hello! I'm your GradSphere Internship & Resume Assistant. Upload your resume in the uploader tab, or tell me what roles you're searching for (e.g. Frontend, Data Analyst), and I will provide tailored job advice and resume enhancement tips!",
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }));
     }

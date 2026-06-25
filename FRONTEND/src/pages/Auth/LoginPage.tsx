@@ -11,7 +11,7 @@ export const LoginPage: React.FC = () => {
           <div className={styles.orb2} />
         </div>
         <div style={{ position: 'relative', zIndex: 10 }}>
-          <h1 className={styles.heroTitle}>STU-MINI</h1>
+          <h1 className={styles.heroTitle}>GradSphere</h1>
           <p className={styles.heroDesc}>
             Your comprehensive university student assistance platform. Manage welfare schemes,
             prepare for interviews, apply for internships, and store your academic records in DigiLocker.

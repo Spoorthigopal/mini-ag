@@ -11,7 +11,8 @@ interface SchemeCardProps {
   provider?: string;
   deadline?: string;
   icon?: React.ReactNode;
-  onApply: (id: string) => void;
+  applicationUrl?: string;
+  onApply: (id: string, url?: string) => void;
 }
 
 export const SchemeCard: React.FC<SchemeCardProps> = ({
@@ -22,6 +23,7 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
   provider,
   deadline,
   icon,
+  applicationUrl,
   onApply,
 }) => {
   return (
@@ -38,7 +40,7 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
       </div>
       {provider && <p className={styles.provider}>Provider: {provider}</p>}
       {deadline && <p className={styles.deadline}>Deadline: {deadline}</p>}
-      <Button variant="primary" onClick={() => onApply(id)} className={styles.applyBtn}>
+      <Button variant="primary" onClick={() => onApply(id, applicationUrl)} className={styles.applyBtn}>
         Apply Now
       </Button>
     </div>

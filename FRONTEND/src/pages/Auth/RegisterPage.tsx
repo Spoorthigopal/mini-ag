@@ -11,7 +11,7 @@ export const RegisterPage: React.FC = () => {
           <div className={styles.orb2} />
         </div>
         <div style={{ position: 'relative', zIndex: 10 }}>
-          <h1 className={styles.heroTitle}>Join STU-MINI</h1>
+          <h1 className={styles.heroTitle}>Join GradSphere</h1>
           <p className={styles.heroDesc}>
             Start your journey today. Unlock personalized recommendations for welfare schemes,
             prepare with AI-powered mock interviews, and secure your files directly in DigiLocker.

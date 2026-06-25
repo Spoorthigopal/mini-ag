@@ -1,119 +1,103 @@
-import React, { useEffect, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { RootState } from '../../redux/store';
-import { setSchemes, setFilters } from '../../redux/slices/welfareSlice';
+import React, { useEffect, useState, useMemo } from 'react';
 import SchemeCard from './SchemeCard';
 import FilterPanel from './FilterPanel';
 import styles from './welfare.module.css';
-import { Search } from 'lucide-react';
+import api from '../../services/api';
 
-const mockSchemes = [
-  {
-    id: '1',
-    name: 'National Merit Scholarship Program',
-    amount: '₹50,000 / year',
-    eligibility: ['Undergraduate', 'General', 'Postgraduate'],
-    provider: 'Government of India',
-    deadline: '2026-10-31',
-    category: 'Scholarship',
-  },
-  {
-    id: '2',
-    name: 'Post-Matric Financial Aid for SC/ST Students',
-    amount: '₹25,000 / semester',
-    eligibility: ['SC/ST', 'Undergraduate'],
-    provider: 'State Government',
-    deadline: '2026-09-15',
-    category: 'Scholarship',
-  },
-  {
-    id: '3',
-    name: 'University Excellence Grant for Research',
-    amount: '₹75,000',
-    eligibility: ['Postgraduate', 'General'],
-    provider: 'University Foundation',
-    deadline: '2026-08-30',
-    category: 'Grant',
-  },
-  {
-    id: '4',
-    name: 'Minority Student Subsidy Fund',
-    amount: '₹15,000 / year',
-    eligibility: ['Minority', 'Undergraduate', 'Postgraduate'],
-    provider: 'Corporate CSR',
-    deadline: '2026-12-01',
-    category: 'Subsidy',
-  },
-];
+interface Scheme {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  scheme_type: string;
+  provider: string;
+  states: string;
+  tags: string;
+  application_url: string;
+  amount?: string;
+  deadline?: string;
+  eligibility?: string[];
+}
+
+const defaultFilters = {
+  type: [] as string[],
+  amountRange: [0, 100000] as [number, number],
+  eligibility: [] as string[],
+  deadline: '',
+  provider: [] as string[],
+};
 
 export const SchemesList: React.FC = () => {
-  const dispatch = useDispatch();
-  const { schemes, filters } = useSelector((state: RootState) => state.welfare);
+  const [allSchemes, setAllSchemes] = useState<Scheme[]>([]);
+  const [filters, setFilters] = useState(defaultFilters);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    // Populate mock schemes if empty
-    if (schemes.length === 0) {
-      dispatch(setSchemes(mockSchemes));
-    }
-  }, [dispatch, schemes.length]);
+    const fetchAll = async () => {
+      try {
+        const res = await api.get('/welfare/all');
+        setAllSchemes(res.data);
+      } catch (e) {
+        setError('Could not load schemes. Make sure the backend is running.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAll();
+  }, []);
 
-  const handleFilterChange = (newFilters: any) => {
-    dispatch(setFilters(newFilters));
+  const handleApply = (id: string, url?: string) => {
+    if (url && url.trim() !== '') {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    // Extract OFFICIAL WEBSITE from description text as fallback
+    const scheme = allSchemes.find(s => s.id === id);
+    const text = scheme?.description || '';
+    const match = text.match(/OFFICIAL WEBSITE:\s*(https?:\/\/[^\s\n]+)/);
+    if (match && match[1]) {
+      window.open(match[1].trim(), '_blank', 'noopener,noreferrer');
+    }
   };
 
-  const handleClearFilters = () => {
-    dispatch(setFilters({
-      type: [],
-      amountRange: [0, 100000],
-      eligibility: [],
-      deadline: '',
-      provider: [],
-    }));
-    setSearchTerm('');
-  };
+  const filteredSchemes = useMemo(() => {
+    return allSchemes.filter(scheme => {
+      if (searchTerm) {
+        const q = searchTerm.toLowerCase();
+        if (
+          !(scheme.name || '').toLowerCase().includes(q) &&
+          !(scheme.provider || '').toLowerCase().includes(q) &&
+          !(scheme.tags || '').toLowerCase().includes(q)
+        ) return false;
+      }
+      if (filters.type.length > 0 && !filters.type.some(t =>
+        (scheme.scheme_type || '').toLowerCase().includes(t.toLowerCase()) ||
+        (scheme.category || '').toLowerCase().includes(t.toLowerCase())
+      )) return false;
+      if (filters.provider.length > 0 && !filters.provider.some(p =>
+        (scheme.provider || '').toLowerCase().includes(p.toLowerCase())
+      )) return false;
+      return true;
+    });
+  }, [allSchemes, searchTerm, filters]);
 
-  const handleApply = (id: string) => {
-    alert(`Application submitted successfully for scheme ID: ${id}`);
-  };
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '4rem', color: 'rgba(255,255,255,0.5)' }}>
+        <p>Loading schemes...</p>
+      </div>
+    );
+  }
 
-  // Filter schemes locally
-  const filteredSchemes = schemes.filter((scheme) => {
-    // Search term check
-    if (searchTerm && !scheme.name.toLowerCase().includes(searchTerm.toLowerCase()) && 
-        !(scheme.provider && scheme.provider.toLowerCase().includes(searchTerm.toLowerCase()))) {
-      return false;
-    }
-    
-    // Type/Category check
-    if (filters.type.length > 0 && !filters.type.includes(scheme.category || '')) {
-      return false;
-    }
-
-    // Eligibility check
-    if (filters.eligibility.length > 0) {
-      const matchesEligibility = scheme.eligibility.some(el => filters.eligibility.includes(el));
-      if (!matchesEligibility) return false;
-    }
-
-    // Provider check
-    if (filters.provider.length > 0 && scheme.provider && !filters.provider.includes(scheme.provider)) {
-      return false;
-    }
-
-    // Deadline check
-    if (filters.deadline && scheme.deadline && scheme.deadline > filters.deadline) {
-      return false;
-    }
-
-    // Amount check (parsing numbers roughly)
-    const amountNum = parseInt(scheme.amount.replace(/[^0-9]/g, ''), 10) || 0;
-    if (amountNum < filters.amountRange[0] || amountNum > filters.amountRange[1]) {
-      return false;
-    }
-
-    return true;
-  });
+  if (error) {
+    return (
+      <div style={{ textAlign: 'center', padding: '3rem', color: '#ff2d55' }}>
+        <p>{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>
@@ -127,10 +111,10 @@ export const SchemesList: React.FC = () => {
         />
       </div>
 
-      <FilterPanel 
-        filters={filters} 
-        onChange={handleFilterChange} 
-        onClear={handleClearFilters} 
+      <FilterPanel
+        filters={filters}
+        onChange={setFilters}
+        onClear={() => { setFilters(defaultFilters); setSearchTerm(''); }}
       />
 
       {filteredSchemes.length === 0 ? (
@@ -145,10 +129,11 @@ export const SchemesList: React.FC = () => {
               key={scheme.id}
               id={scheme.id}
               name={scheme.name}
-              amount={scheme.amount}
-              eligibility={scheme.eligibility}
+              amount={scheme.amount || 'See details'}
+              eligibility={scheme.eligibility || [scheme.scheme_type]}
               provider={scheme.provider}
               deadline={scheme.deadline}
+              applicationUrl={scheme.application_url}
               onApply={handleApply}
             />
           ))}

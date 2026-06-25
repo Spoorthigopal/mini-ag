@@ -30,7 +30,7 @@ export const Navbar: React.FC = () => {
             {mobileOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
           <Link to="/" className={styles.brand}>
-            <span className={styles.brandGradient}>STU-MINI</span>
+            <span className={styles.brandGradient}>GradSphere</span>
           </Link>
         </div>
 

@@ -5,11 +5,12 @@ export interface Job {
   title: string;
   company: string;
   location: string;
-  type: string; // e.g., 'Full-time', 'Part-time', 'Remote'
+  type: string;
   description: string;
   requirements: string[];
   salary?: string;
   deadline?: string;
+  applicationUrl?: string;
 }
 
 export interface ChatMessage {

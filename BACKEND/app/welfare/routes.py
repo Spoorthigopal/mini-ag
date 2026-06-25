@@ -8,12 +8,47 @@ from app.welfare.schemas import (
 )
 from app.welfare.service import get_filtered_schemes, chat_with_welfare_bot
 from app.welfare.models import WelfareScheme
-from typing import List
+from typing import List, Any
 import logging
+import json
+import os
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/welfare", tags=["welfare"])
+
+JSON_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "schemes.json")
+
+
+@router.get("/all", response_model=List[Any])
+async def get_all_schemes_from_json():
+    """Return all welfare schemes directly from the JSON knowledge base."""
+    try:
+        with open(JSON_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        schemes_raw = data.get("schemes", [])
+        result = []
+        for s in schemes_raw:
+            meta = s.get("metadata", {})
+            text = s.get("text", "")
+            result.append({
+                "id": meta.get("scheme_id", s.get("id", "")),
+                "name": meta.get("scheme_name", ""),
+                "description": text,
+                "scheme_type": meta.get("scheme_type", "Government Scheme"),
+                "provider": meta.get("provider", ""),
+                "states": meta.get("states", "All India"),
+                "category": meta.get("category", ""),
+                "tags": meta.get("tags", ""),
+                "application_url": meta.get("website", ""),
+                "scheme_status": "active"
+            })
+        return result
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="schemes.json not found. Please add data/schemes.json to the backend.")
+    except Exception as e:
+        logger.error(f"Error reading schemes.json: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load schemes")
 
 
 @router.get("/schemes", response_model=List[WelfareSchemeResponse])
@@ -50,6 +85,31 @@ async def get_schemes(
     except Exception as e:
         logger.error(f"Get schemes error: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch schemes")
+
+
+@router.get("/search", response_model=List[WelfareSchemeResponse])
+async def search_schemes(
+    query: str,
+    top_k: int = 10,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Semantic search for welfare schemes."""
+    try:
+        from app.welfare.rag import welfare_rag
+        retrieved = welfare_rag.query_vector_db(query, top_k=top_k)
+        scheme_ids = [s["id"] for s in retrieved]
+        if not scheme_ids:
+            return []
+        
+        db_schemes = db.query(WelfareScheme).filter(WelfareScheme.id.in_(scheme_ids)).all()
+        db_schemes_dict = {s.id: s for s in db_schemes}
+        sorted_schemes = [db_schemes_dict[sid] for sid in scheme_ids if sid in db_schemes_dict]
+        
+        return sorted_schemes
+    except Exception as e:
+        logger.error(f"Search schemes error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to search schemes")
 
 
 @router.post("/chat", response_model=ChatResponse)

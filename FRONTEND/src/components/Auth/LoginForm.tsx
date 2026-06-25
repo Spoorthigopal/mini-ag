@@ -36,7 +36,7 @@ export const LoginForm: React.FC = () => {
   return (
     <div className={styles.authCard}>
       <h2 className={styles.title}>Welcome Back</h2>
-      <p className={styles.subtitle}>Sign in to your STU-MINI account</p>
+      <p className={styles.subtitle}>Sign in to your GradSphere account</p>
 
       {displayError && (
         <div className={styles.error} style={{ marginBottom: '1.25rem', padding: '0.75rem', background: 'rgba(255, 69, 58, 0.1)', borderRadius: '0.5rem' }}>

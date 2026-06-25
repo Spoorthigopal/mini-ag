@@ -47,7 +47,7 @@ export const RegisterForm: React.FC = () => {
   return (
     <div className={styles.authCard}>
       <h2 className={styles.title}>Create Account</h2>
-      <p className={styles.subtitle}>Get started with STU-MINI platform</p>
+      <p className={styles.subtitle}>Get started with GradSphere platform</p>
 
       {displayError && (
         <div className={styles.error} style={{ marginBottom: '1.25rem', padding: '0.75rem', background: 'rgba(255, 69, 58, 0.1)', borderRadius: '0.5rem' }}>

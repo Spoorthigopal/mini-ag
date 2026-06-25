@@ -11,6 +11,7 @@ export const MockInterview: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasInitialized = useRef(false);
 
   const [questionIndex, setQuestionIndex] = useState(0);
 
@@ -44,7 +45,8 @@ export const MockInterview: React.FC = () => {
 
   useEffect(() => {
     // Inject first question when interview starts
-    if (isActive && messages.length === 0 && activeQuestions.length > 0) {
+    if (isActive && messages.length === 0 && activeQuestions.length > 0 && !hasInitialized.current) {
+      hasInitialized.current = true;
       setIsTyping(true);
       setTimeout(() => {
         dispatch(addMessage({

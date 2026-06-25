@@ -17,6 +17,7 @@ const mockJobs = [
     match: 92,
     tags: ['React', 'TypeScript', 'Node.js'],
     description: 'Looking for a passionate Frontend-focused engineer to build modular dashboards and UI portals using modern React and Redux.',
+    applicationUrl: 'https://www.linkedin.com/jobs/search/?keywords=Software+Engineer+Intern&location=Bangalore',
   },
   {
     id: '2',
@@ -28,6 +29,7 @@ const mockJobs = [
     match: 78,
     tags: ['Python', 'SQL', 'Tableau'],
     description: 'Analyze financial data trends, generate reports, and build interactive dashboards to help make business decisions.',
+    applicationUrl: 'https://www.linkedin.com/jobs/search/?keywords=Data+Analyst+Intern&f_WT=2',
   },
   {
     id: '3',
@@ -39,6 +41,7 @@ const mockJobs = [
     match: 85,
     tags: ['Python', 'Django', 'PostgreSQL'],
     description: 'Help develop robust backend APIs, database structures, and server microservices using Django and clean patterns.',
+    applicationUrl: 'https://www.linkedin.com/jobs/search/?keywords=Backend+Developer+Intern&location=Mumbai',
   },
   {
     id: '4',
@@ -50,6 +53,7 @@ const mockJobs = [
     match: 89,
     tags: ['React', 'CSS Modules', 'JavaScript'],
     description: 'Implement pixel-perfect user interfaces, animations, and responsive components using modern styling frameworks.',
+    applicationUrl: 'https://www.linkedin.com/jobs/search/?keywords=Frontend+Developer+Intern&location=Hyderabad',
   },
 ];
 
@@ -78,7 +82,7 @@ export const JobsList: React.FC = () => {
   };
 
   const handleApply = (id: string) => {
-    alert(`Application successfully submitted for Job ID: ${id}`);
+    // no-op: openUrl is handled inside JobCard
   };
 
   const filteredJobs = jobs.filter((job) => {
@@ -137,6 +141,7 @@ export const JobsList: React.FC = () => {
               match={job.match}
               tags={job.tags}
               description={job.description}
+              jobUrl={(job as any).applicationUrl}
               onApply={handleApply}
             />
           ))}

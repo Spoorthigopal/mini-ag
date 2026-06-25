@@ -1,10 +1,14 @@
 .hero {
   position: relative;
   overflow: hidden;
-  padding: 4rem 2rem;
-  background: linear-gradient(135deg, hsl(230, 40%, 12%) 0%, hsl(230, 30%, 8%) 100%);
+  padding: 6rem 2rem;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%), url('/hero-bg.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
   color: #fff;
   text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .orbContainer {
@@ -12,40 +16,49 @@
   inset: 0;
   pointer-events: none;
   overflow: hidden;
+  mix-blend-mode: screen;
 }
 
 .orb {
   position: absolute;
-  width: 200px;
-  height: 200px;
-  background: radial-gradient(circle at center, hsla(190, 70%, 55%, 0.4), transparent);
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle at center, hsla(210, 100%, 60%, 0.15), transparent);
   border-radius: 50%;
-  animation: float 8s infinite ease-in-out;
+  animation: float 10s infinite ease-in-out alternate;
+  filter: blur(40px);
 }
 
-.orb:nth-child(1) { top: -50px; left: -50px; }
-.orb:nth-child(2) { top: 30%; right: -60px; }
-.orb:nth-child(3) { bottom: -70px; left: 20%; }
+.orb:nth-child(1) { top: -100px; left: -100px; }
+.orb:nth-child(2) { top: 20%; right: -150px; animation-delay: -3s; }
+.orb:nth-child(3) { bottom: -150px; left: 30%; animation-delay: -6s; }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-20px) rotate(180deg); }
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(-40px) scale(1.1); }
 }
 
 .content {
   position: relative;
   z-index: 1;
-  max-width: 800px;
+  max-width: 900px;
   margin: 0 auto;
 }
 
 .title {
-  font-size: 2.5rem;
-  margin-bottom: 0.5rem;
-  font-weight: 700;
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(to right, #ffffff, #a5b4fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .subtitle {
   font-size: 1.25rem;
-  opacity: 0.85;
+  opacity: 0.9;
+  line-height: 1.6;
+  font-weight: 400;
+  color: #cbd5e1;
 }

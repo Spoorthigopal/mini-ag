@@ -43,7 +43,7 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
 
-  const welcomeMessage = user?.name ? `Welcome, ${user.name}!` : 'Welcome to STU-MINI!';
+  const welcomeMessage = user?.name ? `Welcome, ${user.name}!` : 'Welcome to GradSphere!';
 
   return (
     <div className={styles.container}>

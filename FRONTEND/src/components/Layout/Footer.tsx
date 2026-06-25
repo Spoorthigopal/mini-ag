@@ -13,7 +13,7 @@ export const Footer: React.FC = () => {
       }}
     >
       <p style={{ margin: 0 }}>
-        &copy; {new Date().getFullYear()} STU-MINI. All rights reserved.
+        &copy; {new Date().getFullYear()} GradSphere. All rights reserved.
       </p>
     </footer>
   );
