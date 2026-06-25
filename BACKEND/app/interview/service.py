@@ -396,3 +396,233 @@ def cleanup_expired_sessions(db: Session) -> int:
         db.rollback()
         logger.error(f"Error executing expired sessions cleanup: {e}")
         return 0
+
+
+# ─── STUDY COACH FUNCTIONS ────────────────────────────────────────────────────
+
+async def generate_study_plan(
+    user_id: str,
+    job_id: str,
+    skill: str,
+    user_level: str,
+    db: Session
+) -> dict:
+    """Create a personalized study plan session for the selected skill and level."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    job = db.query(InternshipJob).filter(InternshipJob.id == job_id).first()
+    job_title = job.job_title if job else "Software Developer"
+
+    prompt = f"""You are an expert educator and study plan designer.
+A student wants to learn "{skill}" for a "{job_title}" role. Their self-rated level is: {user_level}.
+
+Create a structured study plan with 5-7 topics ordered from foundational to advanced.
+Each topic should be a clear, specific concept (not vague like "Introduction").
+
+Return ONLY a JSON array like this:
+["Topic 1 Name", "Topic 2 Name", "Topic 3 Name", "Topic 4 Name", "Topic 5 Name"]
+
+Make topics specific and actionable. Example for React Beginner: 
+["What is React and how browsers render components", "JSX syntax and writing your first component", "Props: passing data between components", "State with useState hook", "Handling events and user input", "useEffect and lifecycle basics", "Fetching data from an API"]
+"""
+    raw = await call_gemini(prompt, system_context="You are a curriculum designer. Respond with JSON only.")
+    
+    # Parse the topics list
+    start = raw.find("[")
+    end = raw.rfind("]") + 1
+    topics = []
+    if start != -1 and end > start:
+        try:
+            topics = json.loads(raw[start:end])
+        except Exception:
+            topics = [f"Introduction to {skill}", f"Core Concepts of {skill}", f"Practical {skill} Applications",
+                      f"Advanced {skill} Patterns", f"Best Practices for {skill}"]
+    
+    if not topics:
+        topics = [f"Introduction to {skill}", f"Core Concepts of {skill}", f"Practical {skill} Applications",
+                  f"Advanced {skill} Patterns", f"Best Practices for {skill}"]
+
+    # Create a session
+    session_uuid = str(uuid.uuid4())
+    session = InterviewSession(
+        user_id=user_id,
+        job_id=job_id,
+        session_id=session_uuid,
+        started_at=datetime.utcnow(),
+        status="active",
+        messages_json=[],
+        skill_focus=skill,
+        user_level=user_level,
+        study_plan=topics,
+        current_topic_index=0
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+
+    return {
+        "session_id": session_uuid,
+        "skill": skill,
+        "level": user_level,
+        "topics": topics,
+        "current_topic_index": 0
+    }
+
+
+async def teach_topic(session_id: str, db: Session) -> dict:
+    """Generate a rich explanation for the current topic in the session."""
+    session = db.query(InterviewSession).filter(
+        InterviewSession.session_id == session_id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    topics = session.study_plan or []
+    idx = session.current_topic_index or 0
+
+    if idx >= len(topics):
+        return {
+            "session_id": session_id,
+            "topic": "All topics completed!",
+            "explanation": "🎉 Congratulations! You've completed the entire study plan. You should now have a solid understanding of the skill. Keep practising!",
+            "current_index": idx,
+            "total_topics": len(topics),
+            "is_complete": True
+        }
+
+    topic = topics[idx]
+    skill = session.skill_focus or "the subject"
+    level = session.user_level or "Beginner"
+    job = db.query(InternshipJob).filter(InternshipJob.id == session.job_id).first()
+    job_title = job.job_title if job else "Software Developer"
+
+    prompt = f"""You are a warm, engaging tutor teaching "{topic}" (part of learning "{skill}" for a {job_title} role).
+The student is a "{level}".
+
+Structure your explanation like this:
+1. **Hook** - Start with a relatable real-world analogy or story (2-3 sentences). Make it conversational, NOT textbook-style.
+2. **The Core Idea** - Explain the concept in plain English first. Then give a short, concrete real-world example (e.g., how Instagram, Spotify, or Uber uses this).
+3. **Let's Get Technical** - Now explain the technical details, with a short code snippet if applicable (keep it under 12 lines).
+4. **Key Takeaway** - One sentence summary of the most important thing to remember.
+
+Keep the TOTAL response under 500 words. Be encouraging and human. Do not use bullet points for the overall structure - use flowing paragraphs with bold headings."""
+
+    explanation = await call_gemini(prompt, system_context="You are an encouraging, world-class programming tutor.", temperature=0.4, max_tokens=800)
+
+    # Store in messages
+    messages = list(session.messages_json or [])
+    messages.append({
+        "role": "assistant",
+        "content": f"**Topic {idx + 1}: {topic}**\n\n{explanation}",
+        "timestamp": datetime.utcnow().isoformat(),
+        "topic_index": idx
+    })
+    session.messages_json = messages
+    db.commit()
+
+    return {
+        "session_id": session_id,
+        "topic": topic,
+        "explanation": explanation,
+        "current_index": idx,
+        "total_topics": len(topics),
+        "is_complete": False
+    }
+
+
+async def handle_interaction(
+    session_id: str,
+    action: str,
+    user_message: str,
+    db: Session
+) -> dict:
+    """Handle 'go_deeper' or 'move_next' actions from the user."""
+    session = db.query(InterviewSession).filter(
+        InterviewSession.session_id == session_id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    topics = session.study_plan or []
+    idx = session.current_topic_index or 0
+    topic = topics[idx] if idx < len(topics) else "All topics"
+    skill = session.skill_focus or "the subject"
+
+    messages = list(session.messages_json or [])
+
+    if action == "move_next":
+        new_idx = idx + 1
+        session.current_topic_index = new_idx
+        messages.append({
+            "role": "user",
+            "content": "Move to next topic →",
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        session.messages_json = messages
+        db.commit()
+        return await teach_topic(session_id, db)
+
+    elif action == "go_deeper":
+        # User asked a follow-up question on the current topic
+        messages.append({
+            "role": "user",
+            "content": user_message,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+        # Build conversation context
+        recent_history = "\n".join([
+            f"{m['role'].capitalize()}: {m['content'][:300]}"
+            for m in messages[-6:]
+        ])
+
+        prompt = f"""You are teaching "{topic}" (in the context of "{skill}") and the student asked:
+"{user_message}"
+
+Conversation so far:
+{recent_history}
+
+Answer their question in a helpful, human way. Give a real-world example if possible. Be concise (under 300 words). If they ask to go even deeper on a sub-concept, do so enthusiastically."""
+
+        response = await call_gemini(prompt, system_context="You are an expert, encouraging tutor.", temperature=0.5, max_tokens=600)
+
+        messages.append({
+            "role": "assistant",
+            "content": response,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        session.messages_json = messages
+        db.commit()
+
+        return {
+            "session_id": session_id,
+            "topic": topic,
+            "explanation": response,
+            "current_index": idx,
+            "total_topics": len(topics),
+            "is_complete": False,
+            "action": "go_deeper"
+        }
+
+    raise HTTPException(status_code=400, detail="Invalid action. Use 'go_deeper' or 'move_next'.")
+
+
+async def resume_session(session_id: str, db: Session) -> dict:
+    """Resume an existing study session."""
+    session = db.query(InterviewSession).filter(
+        InterviewSession.session_id == session_id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return {
+        "session_id": session_id,
+        "skill": session.skill_focus,
+        "level": session.user_level,
+        "topics": session.study_plan or [],
+        "current_topic_index": session.current_topic_index or 0,
+        "messages": session.messages_json or [],
+        "status": session.status
+    }

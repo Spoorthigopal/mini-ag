@@ -12,6 +12,7 @@ const modules = [
   {
     title: 'Welfare Schemes',
     description: 'Discover, filter, and apply for government and university financial aids, scholarships, and grants tailored to your profile.',
+    features: ['Search 70+ Schemes', 'AI Scheme Recommendations', 'Direct Apply Links', 'Eligibility Checker'],
     icon: <Gift size={32} style={{ color: '#ff2d55' }} />,
     path: '/welfare',
     color: '#ff2d55',
@@ -19,6 +20,7 @@ const modules = [
   {
     title: 'Internships Portal',
     description: 'Explore curated job and internship opportunities. Upload your resume to get instant, AI-based matching and feedback.',
+    features: ['Live Job Listings', 'AI Resume Parsing', 'Smart Skill Matching', 'Direct Application'],
     icon: <Briefcase size={32} style={{ color: '#30d158' }} />,
     path: '/internships',
     color: '#30d158',
@@ -26,6 +28,7 @@ const modules = [
   {
     title: 'AI Mock Interview',
     description: 'Practice mock interviews in real-time with our intelligent AI coach and get comprehensive, actionable feedback.',
+    features: ['Real-time Audio Chats', 'Technical & HR Modes', 'Instant Feedback Report', 'Performance Analytics'],
     icon: <Sparkles size={32} style={{ color: '#0a84ff' }} />,
     path: '/interview',
     color: '#0a84ff',
@@ -33,6 +36,7 @@ const modules = [
   {
     title: 'DigiLocker',
     description: 'Safeguard your academic transcripts, certificates, identity cards, and financial documents with ease and privacy.',
+    features: ['Secure Cloud Storage', 'Encrypted Documents', 'Quick Share Links', 'Auto Verification'],
     icon: <Shield size={32} style={{ color: '#ff9f0a' }} />,
     path: '/digilocker',
     color: '#ff9f0a',
@@ -55,16 +59,29 @@ export const Dashboard: React.FC = () => {
       <section className={styles.grid}>
         {modules.map((mod) => (
           <Card key={mod.title} className={styles.card} hoverable={true}>
-            <div 
-              className={styles.iconWrapper} 
-              style={{ 
-                background: `rgba(${mod.color === '#ff2d55' ? '255, 45, 85' : mod.color === '#30d158' ? '48, 209, 88' : mod.color === '#0a84ff' ? '10, 132, 255' : '255, 159, 10'}, 0.15)`
-              }}
-            >
-              {mod.icon}
+            <div className={styles.cardHeader}>
+              <div 
+                className={styles.iconWrapper} 
+                style={{ 
+                  background: `rgba(${mod.color === '#ff2d55' ? '255, 45, 85' : mod.color === '#30d158' ? '48, 209, 88' : mod.color === '#0a84ff' ? '10, 132, 255' : '255, 159, 10'}, 0.15)`
+                }}
+              >
+                {mod.icon}
+              </div>
+              <h3 className={styles.title}>{mod.title}</h3>
             </div>
-            <h3 className={styles.title}>{mod.title}</h3>
+            
             <p className={styles.desc}>{mod.description}</p>
+            
+            <ul className={styles.featuresList}>
+              {mod.features.map((feature, idx) => (
+                <li key={idx} className={styles.featureItem}>
+                  <ArrowRight size={14} className={styles.featureIcon} style={{ color: mod.color }} />
+                  {feature}
+                </li>
+              ))}
+            </ul>
+
             <Button 
               variant="primary" 
               onClick={() => navigate(mod.path)} 
@@ -80,7 +97,7 @@ export const Dashboard: React.FC = () => {
                 gap: '0.5rem',
               }}
             >
-              Access Module <ArrowRight size={16} />
+              Access Module
             </Button>
           </Card>
         ))}

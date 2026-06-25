@@ -95,11 +95,13 @@ def chat_with_welfare_bot(
     filters: WelfareFilterParams = None,
     session_id: str = None
 ) -> Tuple[str, List[dict], str]:
-    """Process welfare bot chat query using Pinecone RAG + Gemini."""
+    """Process welfare bot chat query using local JSON RAG + Gemini + DDG."""
     try:
+        session_id = session_id or str(uuid.uuid4())
+        # The frontend still expects retrieved_schemes for UI context
         retrieved_schemes = welfare_rag.query_vector_db(user_query, top_k=5)
-        response = welfare_rag.generate_response(user_query, retrieved_schemes)
-        return response, retrieved_schemes, session_id or str(uuid.uuid4())
+        response = welfare_rag.generate_response(user_query, session_id)
+        return response, retrieved_schemes, session_id
     except Exception as e:
         logger.error(f"Chat error: {e}")
         raise

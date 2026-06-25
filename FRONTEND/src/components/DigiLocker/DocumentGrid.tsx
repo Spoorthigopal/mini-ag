@@ -19,7 +19,12 @@ export const DocumentGrid: React.FC = () => {
   };
 
   const handleDownload = (id: string) => {
-    alert(`Downloading secured document ID: ${id}`);
+    const doc = documents.find(d => d.id === id);
+    if (doc && doc.url) {
+      window.open(doc.url, '_blank');
+    } else {
+      alert(`Download link not available for document ID: ${id}`);
+    }
   };
 
   const handleDelete = (id: string) => {

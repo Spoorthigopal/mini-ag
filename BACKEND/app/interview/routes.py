@@ -13,7 +13,10 @@ from app.interview.schemas import (
     InterviewAnswerResponse,
     InterviewSummary
 )
-from app.interview.service import start_interview, process_answer, get_session_summary
+from app.interview.service import (
+    start_interview, process_answer, get_session_summary,
+    generate_study_plan, teach_topic, handle_interaction, resume_session
+)
 from typing import List, Optional
 from pydantic import BaseModel
 import time
@@ -261,3 +264,99 @@ async def get_history(
     # Paginate
     paginated_messages = formatted_messages[skip:skip + limit]
     return paginated_messages
+
+
+# ─── STUDY COACH ENDPOINTS ────────────────────────────────────────────────────
+
+class StudyPlanRequest(BaseModel):
+    job_id: str
+    skill: str
+    user_level: str  # "Beginner", "Intermediate", "Expert"
+
+
+class InteractionRequest(BaseModel):
+    session_id: str
+    action: str  # "go_deeper" or "move_next"
+    message: str = ""
+
+
+@router.post("/study/plan", status_code=200)
+async def create_study_plan(
+    request: StudyPlanRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Generate a personalised study plan for a selected skill and level."""
+    return await generate_study_plan(
+        user_id=current_user.id,
+        job_id=request.job_id,
+        skill=request.skill,
+        user_level=request.user_level,
+        db=db
+    )
+
+
+@router.post("/study/teach", status_code=200)
+async def teach_current_topic(
+    body: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get explanation for the current topic in the study plan."""
+    session_id = body.get("session_id")
+    if not session_id:
+        raise HTTPException(status_code=422, detail="session_id is required")
+    return await teach_topic(session_id, db)
+
+
+@router.post("/study/interact", status_code=200)
+async def interact_with_coach(
+    request: InteractionRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Handle user interaction: go_deeper or move_next."""
+    return await handle_interaction(
+        session_id=request.session_id,
+        action=request.action,
+        user_message=request.message,
+        db=db
+    )
+
+
+@router.get("/study/resume/{session_id}", status_code=200)
+async def resume_study_session(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Resume a previous study session."""
+    return await resume_session(session_id, db)
+
+
+@router.get("/study/user-sessions", status_code=200)
+async def get_user_study_sessions(
+    job_id: str = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get the most recent active study session for the user and job."""
+    query = db.query(InterviewSession).filter(
+        InterviewSession.user_id == current_user.id,
+        InterviewSession.skill_focus.isnot(None),
+        InterviewSession.status == "active"
+    )
+    if job_id:
+        query = query.filter(InterviewSession.job_id == job_id)
+    
+    session = query.order_by(InterviewSession.started_at.desc()).first()
+    if not session:
+        return None
+    return {
+        "session_id": session.session_id,
+        "skill": session.skill_focus,
+        "level": session.user_level,
+        "topics": session.study_plan or [],
+        "current_topic_index": session.current_topic_index or 0,
+        "status": session.status
+    }

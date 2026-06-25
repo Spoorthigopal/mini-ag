@@ -12,6 +12,7 @@ const mockJobs = [
     company: 'TechCorp Solutions',
     role: 'Software Engineer Intern',
     location: 'Bangalore',
+    type: 'Full-time',
     stipend: '₹40,000 / month',
     rating: 4.5,
     match: 92,
@@ -24,6 +25,7 @@ const mockJobs = [
     company: 'FinSphere Systems',
     role: 'Data Analyst Intern',
     location: 'Remote',
+    type: 'Part-time',
     stipend: '₹35,000 / month',
     rating: 4.2,
     match: 78,
@@ -36,6 +38,7 @@ const mockJobs = [
     company: 'Innovate Digital',
     role: 'Backend Developer Intern',
     location: 'Mumbai',
+    type: 'Full-time',
     stipend: '₹30,000 / month',
     rating: 4.0,
     match: 85,
@@ -48,6 +51,7 @@ const mockJobs = [
     company: 'PixelPerfect Web',
     role: 'Frontend Developer Intern',
     location: 'Hyderabad',
+    type: 'Contract',
     stipend: '₹25,000 / month',
     rating: 4.7,
     match: 89,
@@ -98,6 +102,10 @@ export const JobsList: React.FC = () => {
     }
 
     if (filters.location.length > 0 && !filters.location.includes(job.location)) {
+      return false;
+    }
+
+    if (filters.type && filters.type.length > 0 && !filters.type.includes(job.type)) {
       return false;
     }
 

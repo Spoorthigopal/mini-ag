@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Text, JSON, ForeignKey, Float
+from sqlalchemy import Column, String, DateTime, Text, JSON, ForeignKey, Float, Integer
 from sqlalchemy.sql import func
 from app.database import Base
 import uuid
@@ -15,6 +15,10 @@ class InterviewSession(Base):
     ended_at = Column(DateTime(timezone=True), nullable=True)
     status = Column(String(50), default="active", nullable=False)
     messages_json = Column(JSON, nullable=True, default=list)
+    skill_focus = Column(String(255), nullable=True)
+    user_level = Column(String(50), nullable=True)
+    study_plan = Column(JSON, nullable=True, default=list)
+    current_topic_index = Column(Integer, default=0, nullable=False)
 
     def __repr__(self):
         return f"<InterviewSession id={self.id} user_id={self.user_id} status={self.status}>"

@@ -1,111 +1,129 @@
-from pinecone import Pinecone
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.memory import ConversationBufferMemory
 from langchain.prompts import PromptTemplate
 from app.config import settings
-from app.shared.embeddings import embeddings_client
+from duckduckgo_search import DDGS
 from typing import List, Dict, Any
 import logging
+import json
+import os
 
 logger = logging.getLogger(__name__)
 
-WELFARE_PROMPT_TEMPLATE = """You are a helpful welfare scheme advisor for university students in India.
-You must answer the user's query STRICTLY AND EXCLUSIVELY using the provided scheme information.
-Do not use any outside knowledge or make up information. If the answer is not contained in the provided schemes, state exactly: "I'm sorry, but I can only answer based on the provided scholarship database, and I do not have information about that."
-
-Relevant Schemes:
-{context}
-
-User Query: {question}
-
-Provide a helpful, accurate response focusing on:
-1. Relevant schemes matching the query
-2. Key eligibility criteria
-3. How to apply
-4. Important deadlines"""
-
+welfare_chat_sessions = {}
 
 class WelfareRAG:
-    """RAG system for welfare schemes using Pinecone + Gemini"""
+    """RAG system for welfare schemes using local JSON + Gemini + Web Search Fallback"""
 
     def __init__(self):
-        self.index_name = "welfare-schemes"
-        self.embedding_dim = 384
-        self._index = None
+        self.schemes_data = []
+        self._load_json()
 
-    def _get_index(self):
-        """Lazy-load Pinecone index."""
-        if self._index is None:
-            pc = Pinecone(api_key=settings.pinecone_api_key)
-            self._index = pc.Index(self.index_name)
-        return self._index
+    def _load_json(self):
+        try:
+            json_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "schemes.json")
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                self.schemes_data = data.get("schemes", [])
+            logger.info(f"Loaded {len(self.schemes_data)} schemes into memory.")
+        except Exception as e:
+            logger.error(f"Failed to load schemes.json: {e}")
 
     def query_vector_db(self, query_text: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        """Query Pinecone for relevant welfare schemes."""
-        try:
-            query_embedding = embeddings_client.embed_text(query_text)
-            index = self._get_index()
-            results = index.query(
-                vector=query_embedding,
-                top_k=top_k,
-                include_metadata=True
-            )
-            schemes = []
-            for match in results.get("matches", []):
-                schemes.append({
-                    "id": match["id"],
-                    "score": match["score"],
-                    "metadata": match.get("metadata", {})
+        """Mock Pinecone query by performing basic substring match on JSON for UI display."""
+        q = query_text.lower()
+        results = []
+        for s in self.schemes_data:
+            if q in s.get("name", "").lower() or q in s.get("description", "").lower():
+                # We need to return an object that looks like what the frontend expects
+                results.append({
+                    "id": s["id"], 
+                    "score": 0.9, 
+                    "metadata": s
                 })
-            return schemes
-        except Exception as e:
-            logger.error(f"Pinecone query error: {e}")
-            return []
+                if len(results) >= top_k:
+                    break
+        return results
 
     def generate_response(
         self,
         query: str,
-        retrieved_schemes: List[Dict[str, Any]]
+        session_id: str
     ) -> str:
-        """Generate response using Gemini with retrieved schemes as context."""
+        """Generate response using Gemini with full JSON context or Web fallback."""
         try:
             llm = ChatGoogleGenerativeAI(
                 model="gemini-2.0-flash",
                 google_api_key=settings.gemini_api_key,
-                temperature=0.7
+                temperature=0.3
             )
 
-            context = "\n".join([
-                f"- {s['metadata'].get('name', 'Unknown')}: {s['metadata'].get('description', 'N/A')}"
-                for s in retrieved_schemes
-            ]) if retrieved_schemes else "No specific schemes found in database."
+            if session_id not in welfare_chat_sessions:
+                welfare_chat_sessions[session_id] = []
+            history = welfare_chat_sessions[session_id]
 
-            prompt = PromptTemplate(
-                template=WELFARE_PROMPT_TEMPLATE,
-                input_variables=["context", "question"]
-            )
+            # 1. Check if the query is a general question requiring web search
+            # We use a very fast classification prompt
+            search_check = f"Is the following query asking about a specific government/university welfare scheme or scholarship? Query: '{query}'. Reply YES or NO."
+            decision = llm.invoke([{"role": "user", "content": search_check}]).content.strip().upper()
 
-            full_prompt = prompt.format(context=context, question=query)
-            response = llm.invoke([{"role": "user", "content": full_prompt}])
-            return response.content
+            if "NO" in decision:
+                # Fallback to DuckDuckGo Web Search
+                try:
+                    with DDGS() as ddgs:
+                        results = list(ddgs.text(query, max_results=3))
+                    
+                    web_context = "\n".join([f"- {r['title']}: {r['body']} (Link: {r['href']})" for r in results])
+                    system_prompt = f"You are a helpful assistant. You searched the web for the user's query. Provide a conversational, helpful response based on these search results. Always include the source links.\n\nWeb Results:\n{web_context}"
+                    
+                    history.append({"role": "user", "content": query})
+                    messages = [{"role": "system", "content": system_prompt}]
+                    # Keep last 6 messages
+                    messages.extend(history[-6:])
+                    
+                    response = llm.invoke(messages).content
+                    history.append({"role": "assistant", "content": response})
+                    
+                    return f"Searched on web...\n\n{response}"
+                except Exception as e:
+                    logger.error(f"Web search error: {e}")
+                    return "I'm sorry, I couldn't find information in the database, and the web search failed."
+
+            # 2. Scheme Database Query
+            # Build ultra-dense context of all schemes
+            context_lines = []
+            for s in self.schemes_data:
+                url = s.get("application_url") or s.get("metadata", {}).get("website") or "No URL available"
+                context_lines.append(f"[{s['id']}] {s['name']} | URL: {url} | Eligibility: {s.get('eligibility', [])} | Deadline: {s.get('deadline', 'Ongoing')}")
+            
+            context_str = "\n".join(context_lines)
+
+            system_prompt = f"""You are a helpful welfare scheme advisor for university students.
+You must answer the user's query STRICTLY using the provided scheme database context.
+If the answer is not contained in the schemes, say "I don't have information about that in the database."
+CRUCIAL INSTRUCTION: If the user asks for links or URLs, you MUST provide the exact URL from the context.
+
+Database Context:
+{context_str}"""
+
+            history.append({"role": "user", "content": query})
+            
+            messages = [{"role": "system", "content": system_prompt}]
+            messages.extend(history[-6:])
+
+            response = llm.invoke(messages).content
+            history.append({"role": "assistant", "content": response})
+            
+            return response
 
         except Exception as e:
             logger.error(f"Response generation error: {e}")
             raise
 
     def upsert_scheme(self, scheme_id: str, embedding: List[float], metadata: dict):
-        """Upsert a welfare scheme into Pinecone."""
-        try:
-            index = self._get_index()
-            index.upsert(vectors=[{"id": scheme_id, "values": embedding, "metadata": metadata}])
-        except Exception as e:
-            logger.error(f"Pinecone upsert error: {e}")
-            raise
-
+        pass
 
 # Global instance
 welfare_rag = WelfareRAG()
-
 
 def get_welfare_rag() -> WelfareRAG:
     return welfare_rag
