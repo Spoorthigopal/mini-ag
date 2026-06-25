@@ -1,0 +1,5 @@
+cd BACKEND
+uvicorn app.main:app --reload
+
+cd FRONTEND
+npm run dev

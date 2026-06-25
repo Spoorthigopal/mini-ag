@@ -22,8 +22,9 @@ from app.config import settings
 # access to the values within the .ini file in use.
 config = context.config
 
-# Override sqlalchemy.url from settings
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Override sqlalchemy.url from settings, escaping % for configparser
+url_for_alembic = settings.database_url.replace("%", "%%")
+config.set_main_option("sqlalchemy.url", url_for_alembic)
 
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:
