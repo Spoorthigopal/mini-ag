@@ -48,6 +48,9 @@ export const UploadZone: React.FC = () => {
     dispatch(setUploading(true));
     setUploadProgress(0);
 
+    // Create a persistent object URL so the viewer can display the file
+    const objectUrl = URL.createObjectURL(file);
+
     const interval = setInterval(() => {
       setUploadProgress((prev) => {
         if (prev >= 100) {
@@ -60,7 +63,7 @@ export const UploadZone: React.FC = () => {
             size: file.size,
             uploadedAt: new Date().toISOString().split('T')[0],
             category,
-            url: '#',
+            url: objectUrl,
           };
           dispatch(addDocument(newDoc));
           dispatch(setUploading(false));
@@ -71,6 +74,7 @@ export const UploadZone: React.FC = () => {
       });
     }, 150);
   };
+
 
   const triggerFileSelect = () => {
     fileInputRef.current?.click();
