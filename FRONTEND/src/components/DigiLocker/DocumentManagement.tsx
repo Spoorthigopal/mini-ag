@@ -1,54 +1,45 @@
 import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../redux/store';
-import { addDocument } from '../../redux/slices/documentSlice';
+import { setDocuments, setLoading, setError, clearAll } from '../../redux/slices/documentSlice';
+import { listDocuments } from '../../services/digilockerService';
 import UploadZone from './UploadZone';
 import DocumentGrid from './DocumentGrid';
 import styles from './digilocker.module.css';
 import { Shield } from 'lucide-react';
 
-const mockDocs = [
-  {
-    id: '1',
-    name: 'semester_1_transcript.pdf',
-    type: 'pdf',
-    category: 'Academic' as const,
-    size: 245000,
-    uploadedAt: '2026-05-10',
-    url: '#',
-  },
-  {
-    id: '2',
-    name: 'aadhaar_card.pdf',
-    type: 'pdf',
-    category: 'Identity' as const,
-    size: 154000,
-    uploadedAt: '2026-06-01',
-    url: '#',
-  },
-  {
-    id: '3',
-    name: 'internship_offer_letter.pdf',
-    type: 'pdf',
-    category: 'Professional' as const,
-    size: 312000,
-    uploadedAt: '2026-06-15',
-    url: '#',
-  },
-];
-
 export const DocumentManagement: React.FC = () => {
   const dispatch = useDispatch();
-  const { documents } = useSelector((state: RootState) => state.document);
+  const { error } = useSelector((state: RootState) => state.document);
+  const { token } = useSelector((state: RootState) => state.auth);
 
+  // Fetch the user's real documents from the backend on mount (and when token changes)
   useEffect(() => {
-    // Populate mock documents if empty
-    if (documents.length === 0) {
-      mockDocs.forEach((doc) => {
-        dispatch(addDocument(doc));
-      });
-    }
-  }, [dispatch, documents.length]);
+    if (!token) return;
+
+    const fetchDocuments = async () => {
+      dispatch(setLoading(true));
+      dispatch(setError(null));
+      try {
+        const response = await listDocuments(undefined, 1, 50);
+        dispatch(setDocuments(response.documents));
+      } catch (err: any) {
+        const msg =
+          err?.response?.data?.detail ||
+          'Failed to load documents. Please try again.';
+        dispatch(setError(msg));
+      } finally {
+        dispatch(setLoading(false));
+      }
+    };
+
+    fetchDocuments();
+
+    // Clear documents on unmount to avoid stale state between user sessions
+    return () => {
+      dispatch(clearAll());
+    };
+  }, [dispatch, token]);
 
   return (
     <div className={styles.container}>
@@ -57,12 +48,25 @@ export const DocumentManagement: React.FC = () => {
           <Shield style={{ color: '#ff9f0a' }} /> DigiLocker Vault
         </h2>
         <p style={{ color: 'rgba(255, 255, 255, 0.5)', margin: '0.25rem 0 0 0', fontSize: '0.9375rem' }}>
-          Your secure, decentralized vault. All documents are AES-256 encrypted and stored on-chain.
+          Your secure, encrypted vault. All documents are AES-256-GCM encrypted and only decryptable by you.
         </p>
       </div>
 
+      {error && (
+        <div style={{
+          background: 'rgba(255, 69, 58, 0.15)',
+          border: '1px solid rgba(255, 69, 58, 0.35)',
+          borderRadius: '0.75rem',
+          padding: '0.875rem 1.25rem',
+          color: '#ff453a',
+          fontSize: '0.9rem',
+        }}>
+          ⚠ {error}
+        </div>
+      )}
+
       <UploadZone />
-      
+
       <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '2rem', marginTop: '1rem' }}>
         <h3 style={{ margin: '0 0 1.25rem 0', fontSize: '1.25rem', fontWeight: 700 }}>Your Secured Files</h3>
         <DocumentGrid />

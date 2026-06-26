@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: stumini_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-stumini_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./BACKEND
+    container_name: stumini_backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./BACKEND/.env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-stumini_db}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./BACKEND:/app
+
+  frontend:
+    build:
+      context: ./FRONTEND
+    container_name: stumini_frontend
+    ports:
+      - "5173:5173"
+    env_file:
+      - ./FRONTEND/.env
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./FRONTEND:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:

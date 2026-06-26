@@ -21,7 +21,8 @@ export const useAuth = () => {
       navigate('/');
       return true;
     } catch (err: any) {
-      const errMsg = err.response?.data?.message || 'Invalid email or password.';
+      const detail = err.response?.data?.detail;
+      const errMsg = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail[0].msg : (err.response?.data?.message || 'Invalid email or password.'));
       setError(errMsg);
       dispatch(setLoading(false));
       return false;
@@ -40,7 +41,8 @@ export const useAuth = () => {
       navigate('/');
       return true;
     } catch (err: any) {
-      const errMsg = err.response?.data?.message || 'Registration failed. Please try again.';
+      const detail = err.response?.data?.detail;
+      const errMsg = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail[0].msg : (err.response?.data?.message || 'Registration failed. Please try again.'));
       setError(errMsg);
       dispatch(setLoading(false));
       return false;
