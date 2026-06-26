@@ -19,16 +19,16 @@ const modules = [
   },
   {
     title: 'Internships Portal',
-    description: 'Explore curated job and internship opportunities. Upload your resume to get instant, AI-based matching and feedback.',
-    features: ['Live Job Listings', 'AI Resume Parsing', 'Smart Skill Matching', 'Direct Application'],
+    description: 'Explore  job and internship opportunities.',
+    features: ['Live Job Listings', 'Smart Skill Matching', 'Direct Application'],
     icon: <Briefcase size={32} style={{ color: '#30d158' }} />,
     path: '/internships',
     color: '#30d158',
   },
   {
-    title: 'AI Mock Interview',
-    description: 'Practice mock interviews in real-time with our intelligent AI coach and get comprehensive, actionable feedback.',
-    features: ['Real-time Audio Chats', 'Technical & HR Modes', 'Instant Feedback Report', 'Performance Analytics'],
+    title: 'Interview Prep',
+    description: 'Master your technical interviews with comprehensive question banks, difficulty levels, and detailed technical explanations.',
+    features: ['Must Have Technical Skills', 'Easy, Moderate, Difficult Qs', 'Technical Explanations'],
     icon: <Sparkles size={32} style={{ color: '#0a84ff' }} />,
     path: '/interview',
     color: '#0a84ff',
@@ -51,18 +51,18 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className={styles.container}>
-      <HeroSection 
-        title={welcomeMessage} 
+      <HeroSection
+        title={welcomeMessage}
         subtitle="Your intelligent university student assistance platform. Explore our specialized modules below."
       />
-      
+
       <section className={styles.grid}>
         {modules.map((mod) => (
           <Card key={mod.title} className={styles.card} hoverable={true}>
             <div className={styles.cardHeader}>
-              <div 
-                className={styles.iconWrapper} 
-                style={{ 
+              <div
+                className={styles.iconWrapper}
+                style={{
                   background: `rgba(${mod.color === '#ff2d55' ? '255, 45, 85' : mod.color === '#30d158' ? '48, 209, 88' : mod.color === '#0a84ff' ? '10, 132, 255' : '255, 159, 10'}, 0.15)`
                 }}
               >
@@ -70,9 +70,9 @@ export const Dashboard: React.FC = () => {
               </div>
               <h3 className={styles.title}>{mod.title}</h3>
             </div>
-            
+
             <p className={styles.desc}>{mod.description}</p>
-            
+
             <ul className={styles.featuresList}>
               {mod.features.map((feature, idx) => (
                 <li key={idx} className={styles.featureItem}>
@@ -82,9 +82,9 @@ export const Dashboard: React.FC = () => {
               ))}
             </ul>
 
-            <Button 
-              variant="primary" 
-              onClick={() => navigate(mod.path)} 
+            <Button
+              variant="primary"
+              onClick={() => navigate(mod.path)}
               className={styles.button}
               style={{
                 background: `linear-gradient(135deg, ${mod.color} 0%, rgba(0, 0, 0, 0.4) 100%)`,

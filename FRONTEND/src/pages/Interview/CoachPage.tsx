@@ -1,10 +1,10 @@
 import React from 'react';
-import InterviewCoach from '../../components/Interview/InterviewCoach';
+import InterviewPrep from '../../components/Interview/InterviewPrep';
 
 export const CoachPage: React.FC = () => {
   return (
     <div>
-      <InterviewCoach />
+      <InterviewPrep />
     </div>
   );
 };

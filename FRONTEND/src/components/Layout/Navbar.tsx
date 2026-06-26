@@ -91,7 +91,7 @@ export const Navbar: React.FC = () => {
           <Link to="/welfare/chat" className={styles.mobileLink} onClick={() => setMobileOpen(false)}>Welfare Chat</Link>
           <Link to="/internships" className={styles.mobileLink} onClick={() => setMobileOpen(false)}>Internships</Link>
           <Link to="/internships/chat" className={styles.mobileLink} onClick={() => setMobileOpen(false)}>Internships Chat</Link>
-          <Link to="/interview" className={styles.mobileLink} onClick={() => setMobileOpen(false)}>Mock Interview</Link>
+          <Link to="/interview" className={styles.mobileLink} onClick={() => setMobileOpen(false)}>Interview Prep</Link>
           <Link to="/digilocker" className={styles.mobileLink} onClick={() => setMobileOpen(false)}>DigiLocker</Link>
         </div>
       )}

@@ -100,7 +100,7 @@ def chat_with_welfare_bot(
         session_id = session_id or str(uuid.uuid4())
         # The frontend still expects retrieved_schemes for UI context
         retrieved_schemes = welfare_rag.query_vector_db(user_query, top_k=5)
-        response = welfare_rag.generate_response(user_query, session_id)
+        response = welfare_rag.generate_response(user_query, session_id, retrieved_schemes)
         return response, retrieved_schemes, session_id
     except Exception as e:
         logger.error(f"Chat error: {e}")

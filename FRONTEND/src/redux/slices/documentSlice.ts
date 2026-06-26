@@ -34,6 +34,12 @@ const documentSlice = createSlice({
     deleteDocument(state, action: PayloadAction<string>) {
       state.documents = state.documents.filter((doc) => doc.id !== action.payload);
     },
+    updateDocument(state, action: PayloadAction<Document>) {
+      const index = state.documents.findIndex(doc => doc.id === action.payload.id);
+      if (index !== -1) {
+        state.documents[index] = action.payload;
+      }
+    },
     setSelectedCategory(state, action: PayloadAction<DocumentState['selectedCategory']>) {
       state.selectedCategory = action.payload;
     },
@@ -52,6 +58,6 @@ const documentSlice = createSlice({
   },
 });
 
-export const { addDocument, deleteDocument, setSelectedCategory, setUploadProgress, setUploading, clearAll } =
+export const { addDocument, deleteDocument, updateDocument, setSelectedCategory, setUploadProgress, setUploading, clearAll } =
   documentSlice.actions;
 export default documentSlice.reducer;

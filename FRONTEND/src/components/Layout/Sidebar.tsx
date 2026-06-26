@@ -68,7 +68,7 @@ export const Sidebar: React.FC = () => {
               to="/interview" 
               className={({ isActive }) => `${styles.link} ${isActive ? styles.activeLink : ''}`}
             >
-              <Sparkles size={18} /> Mock Interview
+              <Sparkles size={18} /> Interview Prep
             </NavLink>
             <NavLink 
               to="/digilocker" 

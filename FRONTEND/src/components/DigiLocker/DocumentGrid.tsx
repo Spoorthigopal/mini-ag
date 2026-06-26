@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../redux/store';
-import { deleteDocument } from '../../redux/slices/documentSlice';
+import { deleteDocument, updateDocument } from '../../redux/slices/documentSlice';
 import DocumentCard from './DocumentCard';
 import { LoadingSpinner } from '../Common/LoadingSpinner';
 import { NoData } from '../Common/NoData';
@@ -33,10 +33,41 @@ export const DocumentGrid: React.FC = () => {
     }
   };
 
-  const filteredDocs = documents.filter((doc) => {
-    const matchesSearch = doc.name.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = categoryFilter === 'All' || doc.category === categoryFilter;
-    return matchesSearch && matchesCategory;
+  const handleRename = (id: string, newName: string) => {
+    const doc = documents.find(d => d.id === id);
+    if (doc) {
+      dispatch(updateDocument({ ...doc, name: newName }));
+    }
+  };
+
+  const handleUpdate = (id: string, file: File) => {
+    const doc = documents.find(d => d.id === id);
+    if (doc) {
+      dispatch(updateDocument({
+        ...doc,
+        name: file.name,
+        size: file.size,
+        type: file.name.split('.').pop() || doc.type,
+        uploadedAt: new Date().toISOString().split('T')[0]
+      }));
+    }
+  };
+
+  const handleView = (id: string) => {
+    const doc = documents.find(d => d.id === id);
+    if (doc) {
+      // Dummy view implementation
+      alert(`Viewing document: ${doc.name}`);
+    }
+  };
+
+  const categoryDocs = documents.filter(doc => categoryFilter === 'All' || doc.category === categoryFilter);
+
+  // Sort so highlighted docs come first
+  const sortedDocs = [...categoryDocs].sort((a, b) => {
+    const aMatch = search && a.name.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
+    const bMatch = search && b.name.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
+    return bMatch - aMatch;
   });
 
   if (uploading) return <LoadingSpinner />;
@@ -71,27 +102,34 @@ export const DocumentGrid: React.FC = () => {
         </select>
       </div>
       
-      {filteredDocs.length === 0 ? (
+      {sortedDocs.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: 'rgba(255, 255, 255, 0.4)' }}>
-          <h3>No Documents Match Your Search</h3>
+          <h3>No Documents Found</h3>
           <p>Try adjusting your search query or choosing a different category filter.</p>
         </div>
       ) : (
         <div className={styles.grid}>
-          {filteredDocs.map((doc) => (
-            <DocumentCard
-              key={doc.id}
-              id={doc.id}
-              name={doc.name}
-              type={doc.type}
-              uploadDate={doc.uploadedAt}
-              size={doc.size}
-              url={doc.url}
-              encrypted={true}
-              onDownload={handleDownload}
-              onDelete={handleDelete}
-            />
-          ))}
+          {sortedDocs.map((doc) => {
+            const isHighlighted = search !== '' && doc.name.toLowerCase().includes(search.toLowerCase());
+            return (
+              <DocumentCard
+                key={doc.id}
+                id={doc.id}
+                name={doc.name}
+                type={doc.type}
+                uploadDate={doc.uploadedAt}
+                size={doc.size}
+                url={doc.url}
+                encrypted={true}
+                isHighlighted={isHighlighted}
+                onDownload={() => {}}
+                onDelete={() => handleDelete(doc.id)}
+                onRename={(newName) => handleRename(doc.id, newName)}
+                onView={() => handleView(doc.id)}
+                onUpdate={(file) => handleUpdate(doc.id, file)}
+              />
+            );
+          })}
         </div>
       )}
     </div>

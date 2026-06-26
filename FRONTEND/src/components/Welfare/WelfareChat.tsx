@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../redux/store';
 import { addWelfareChatMessage } from '../../redux/slices/welfareSlice';
+import { sendWelfareChatMessage } from '../../services/welfareService';
 import styles from './welfare.module.css';
 import { Send, Sparkles } from 'lucide-react';
 
@@ -50,30 +51,24 @@ export const WelfareChat: React.FC = () => {
     // Trigger typing indicator
     setIsTyping(true);
 
-    // Simulate bot response
-    setTimeout(() => {
-      let botResponse = "I can help you find scholarships. Could you specify if you are in Undergraduate or Postgraduate studies?";
-      const inputLower = userMsgText.toLowerCase();
-
-      if (inputLower.includes('undergrad') || inputLower.includes('ug') || inputLower.includes('bachelor')) {
-        botResponse = "Excellent! For undergraduates, we have two prime matching schemes:\n\n1. **National Merit Scholarship Program** (₹50,000/yr) - open to all general categories.\n2. **Post-Matric Financial Aid** (₹25,000/sem) - specifically for SC/ST students.\n\nWhich of these would you like to explore or apply for?";
-      } else if (inputLower.includes('postgrad') || inputLower.includes('pg') || inputLower.includes('master') || inputLower.includes('research')) {
-        botResponse = "Great! For postgraduate and research students, we recommend the **University Excellence Grant for Research** (₹75,000). It is open to all categories and has a deadline of August 30, 2026. Would you like assistance with applying?";
-      } else if (inputLower.includes('sc') || inputLower.includes('st')) {
-        botResponse = "For SC/ST students, you are highly eligible for the **Post-Matric Financial Aid for SC/ST Students** which offers ₹25,000 per semester. The deadline is September 15, 2026. Let me know if you'd like to start your application!";
-      } else if (inputLower.includes('minority')) {
-        botResponse = "For minority group students, the **Minority Student Subsidy Fund** provided by Corporate CSR offers ₹15,000/year. The application is currently open until December 1, 2026. Would you like me to help you fill the form?";
-      } else if (inputLower.includes('thank') || inputLower.includes('bye')) {
-        botResponse = "You're welcome! Let me know if you need anything else. Good luck with your academics!";
-      }
-
+    try {
+      const data = await sendWelfareChatMessage({ query: userMsgText });
+      
       dispatch(addWelfareChatMessage({
         sender: 'bot',
-        text: botResponse,
+        text: data.response,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }));
+    } catch (error) {
+      console.error("Error sending message to welfare bot:", error);
+      dispatch(addWelfareChatMessage({
+        sender: 'bot',
+        text: "I'm sorry, I'm having trouble connecting to my knowledge base right now. Please try again later.",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }));
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   return (
