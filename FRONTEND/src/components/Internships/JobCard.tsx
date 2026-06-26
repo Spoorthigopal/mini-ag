@@ -47,9 +47,6 @@ export const JobCard: React.FC<JobCardProps> = ({
           <h3 className={styles.role}>{role}</h3>
           <p className={styles.company}>🏢 {company}</p>
         </div>
-        <div className={styles.matchBadge} style={{ background: match >= 80 ? 'rgba(48, 209, 88, 0.15)' : 'rgba(10, 132, 255, 0.15)', color: match >= 80 ? '#30d158' : '#0a84ff' }}>
-          {match}% Match
-        </div>
       </div>
 
       <div className={styles.detailsGrid}>

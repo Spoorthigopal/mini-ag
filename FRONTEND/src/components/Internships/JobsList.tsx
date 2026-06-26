@@ -51,6 +51,28 @@ export const JobsList: React.FC = () => {
 
   const handleFilterChange = (newFilters: any) => {
     dispatch(setFilters(newFilters));
+    
+    // Construct dynamic query for JSearch API
+    let queryParts = [];
+    if (newFilters.role && newFilters.role.length > 0) {
+      queryParts.push(newFilters.role[0]);
+    } else if (searchTerm) {
+      queryParts.push(searchTerm);
+    } else {
+      queryParts.push('internship');
+    }
+    
+    if (newFilters.location && newFilters.location.length > 0) {
+      queryParts.push(`in ${newFilters.location[0]}`);
+    } else {
+      queryParts.push('in India');
+    }
+
+    if (newFilters.type && newFilters.type.length > 0) {
+      queryParts.push(newFilters.type[0]);
+    }
+    
+    fetchJobs(queryParts.join(' '));
   };
 
   const handleClearFilters = () => {
@@ -72,23 +94,6 @@ export const JobsList: React.FC = () => {
   const handleApply = (id: string) => {
     // openUrl handles redirection inside JobCard based on applicationUrl
   };
-
-  const filteredJobs = jobs.filter((job: any) => {
-    if (filters.role.length > 0 && !filters.role.includes(job.role.split(' ')[0] || '')) {
-      const matched = filters.role.some((r: string) => job.role.toLowerCase().includes(r.toLowerCase()));
-      if (!matched) return false;
-    }
-
-    if (filters.location.length > 0 && !filters.location.includes(job.location)) {
-      return false;
-    }
-
-    if (filters.type && filters.type.length > 0 && !filters.type.includes(job.type)) {
-      return false;
-    }
-
-    return true;
-  });
 
   return (
     <div className={styles.container}>
@@ -150,14 +155,14 @@ export const JobsList: React.FC = () => {
             </div>
           ))}
         </div>
-      ) : filteredJobs.length === 0 ? (
+      ) : jobs.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: 'rgba(255, 255, 255, 0.4)' }}>
           <h3>No Internship Openings Match Your Selection</h3>
           <p>Clear filters or broaden your query to find more options.</p>
         </div>
       ) : (
         <div className={styles.jobsGrid}>
-          {filteredJobs.map((job: any) => (
+          {jobs.map((job: any) => (
             <JobCard
               key={job.id}
               id={job.id}
