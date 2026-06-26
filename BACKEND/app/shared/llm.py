@@ -1,3 +1,4 @@
+import dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
@@ -8,6 +9,10 @@ import time
 import json
 import asyncio
 from typing import Optional, List, Dict, Any
+import os
+import dotenv
+
+dotenv.load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +22,7 @@ _gemini_client = None
 try:
     llm = ChatGoogleGenerativeAI(
         model="gemini-2.0-flash",
-        google_api_key=settings.GOOGLE_API_KEY or settings.gemini_api_key or "placeholder",
+        google_api_key=os.getenv("GOOGLE_API_KEY_INTERVIEW"),
         temperature=0.7,
         max_output_tokens=2048,
         top_p=0.95,
@@ -35,7 +40,7 @@ def get_gemini_client() -> ChatGoogleGenerativeAI:
         return _gemini_client
     
     try:
-        api_key = settings.GOOGLE_API_KEY or settings.gemini_api_key
+        api_key = os.getenv("GOOGLE_API_KEY_INTERVIEW") or settings.GOOGLE_API_KEY or settings.gemini_api_key
         if not api_key:
             raise ValueError("Google API key is not configured")
             
@@ -73,7 +78,7 @@ async def call_gemini(
     
     # If custom key or custom temperature/tokens are requested, instantiate a configured client
     if custom_api_key or temperature != 0.7 or max_tokens != 2048:
-        api_key = custom_api_key or settings.GOOGLE_API_KEY or settings.gemini_api_key
+        api_key = custom_api_key or os.getenv("GOOGLE_API_KEY_INTERVIEW") or settings.GOOGLE_API_KEY or settings.gemini_api_key
         client = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             google_api_key=api_key,
@@ -82,7 +87,8 @@ async def call_gemini(
             top_p=0.95,
             top_k=40,
             convert_system_message_to_human=True,
-            max_retries=0  # Disable LangChain internal retries
+            max_retries=0,
+            request_timeout=30
         )
 
     messages = []

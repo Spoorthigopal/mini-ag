@@ -98,10 +98,12 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             onChange={(e) => handleSelectChange('provider', e.target.value)}
           >
             <option value="">All Providers</option>
-            <option value="Government of India">Government of India</option>
-            <option value="State Government">State Government</option>
-            <option value="University Foundation">University Foundation</option>
-            <option value="Corporate CSR">Corporate CSR</option>
+            <option value="Ministry of Education">Ministry of Education</option>
+            <option value="Ministry of Social Justice">Ministry of Social Justice</option>
+            <option value="AICTE">AICTE</option>
+            <option value="Ministry of Agriculture">Ministry of Agriculture</option>
+            <option value="Ministry of Women">Ministry of Women</option>
+            <option value="Ministry of Health">Ministry of Health</option>
           </select>
         </div>
 

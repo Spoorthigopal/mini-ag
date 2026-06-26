@@ -68,6 +68,28 @@ async def get_job(
     return job
 
 
+@router.get("/search_live")
+async def search_live_jsearch(
+    query: str,
+    limit: int = 10,
+    current_user: User = Depends(get_current_user)
+):
+    """Live search using JSearch API."""
+    from app.internships.jsearch_client import jsearch_client
+    try:
+        raw_jobs = jsearch_client.query_jsearch(query, limit=limit)
+        results = []
+        for raw in raw_jobs:
+            parsed = jsearch_client.parse_job_listing(raw)
+            # Ensure id exists for frontend mapping
+            parsed["id"] = parsed.get("jsearch_job_id") or str(uuid.uuid4())
+            results.append(parsed)
+        return results
+    except Exception as e:
+        logger.error(f"Live search error: {e}")
+        raise HTTPException(status_code=500, detail="Search failed")
+
+
 @router.post("/upload-resume", response_model=ResumeUploadResponse)
 async def upload_resume(
     file: UploadFile = File(...),

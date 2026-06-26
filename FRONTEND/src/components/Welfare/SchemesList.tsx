@@ -49,16 +49,25 @@ export const SchemesList: React.FC = () => {
   }, []);
 
   const handleApply = (id: string, url?: string) => {
-    if (url && url.trim() !== '') {
-      window.open(url, '_blank', 'noopener,noreferrer');
-      return;
-    }
-    // Extract OFFICIAL WEBSITE from description text as fallback
+    let targetUrl = url;
     const scheme = allSchemes.find(s => s.id === id);
-    const text = scheme?.description || '';
-    const match = text.match(/OFFICIAL WEBSITE:\s*(https?:\/\/[^\s\n]+)/);
-    if (match && match[1]) {
-      window.open(match[1].trim(), '_blank', 'noopener,noreferrer');
+    if (!targetUrl || targetUrl.trim() === '') {
+      const text = scheme?.description || '';
+      const match = text.match(/OFFICIAL WEBSITE:\s*(https?:\/\/[^\s\n]+)/);
+      if (match && match[1]) {
+        targetUrl = match[1].trim();
+      }
+    }
+    
+    if (targetUrl) {
+      const name = scheme?.name || '';
+      // Exclude already processed URLs or some base URLs that can't handle params easily? 
+      // Safest is to just append scheme name as query param
+      const separator = targetUrl.includes('?') ? '&' : '?';
+      // Some URLs in the JSON have " | " separating multiple urls, let's take the first one
+      targetUrl = targetUrl.split('|')[0].trim();
+      targetUrl = `${targetUrl}${separator}scheme=${encodeURIComponent(name)}`;
+      window.open(targetUrl, '_blank', 'noopener,noreferrer');
     }
   };
 

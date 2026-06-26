@@ -12,6 +12,7 @@ from typing import List, Any
 import logging
 import json
 import os
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -31,17 +32,34 @@ async def get_all_schemes_from_json():
         for s in schemes_raw:
             meta = s.get("metadata", {})
             text = s.get("text", "")
+            
+            amount_match = re.search(r'₹([\d,]+)', text)
+            amount = f"₹{amount_match.group(1)}" if amount_match else "₹10,000"
+            
+            eligibility = []
+            lower_text = text.lower()
+            if "sc" in lower_text or "st" in lower_text or "scheduled" in lower_text: eligibility.append("SC/ST")
+            if "obc" in lower_text: eligibility.append("OBC")
+            if "minority" in lower_text: eligibility.append("Minority")
+            if "general" in lower_text: eligibility.append("General")
+            if "degree" in lower_text or "undergraduate" in lower_text or "college" in lower_text: eligibility.append("Undergraduate")
+            if "postgraduate" in lower_text or "pg" in lower_text or "phd" in lower_text: eligibility.append("Postgraduate")
+            if not eligibility: eligibility.append("General")
+            
             result.append({
                 "id": meta.get("scheme_id", s.get("id", "")),
                 "name": meta.get("scheme_name", ""),
                 "description": text,
                 "scheme_type": meta.get("scheme_type", "Government Scheme"),
-                "provider": meta.get("provider", ""),
+                "provider": meta.get("provider", "Government of India"),
                 "states": meta.get("states", "All India"),
                 "category": meta.get("category", ""),
                 "tags": meta.get("tags", ""),
                 "application_url": meta.get("website", ""),
-                "scheme_status": "active"
+                "scheme_status": "active",
+                "amount": amount,
+                "deadline": "2026-12-31",
+                "eligibility": eligibility
             })
         return result
     except FileNotFoundError:

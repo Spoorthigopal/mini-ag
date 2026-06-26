@@ -45,7 +45,7 @@ export const JobCard: React.FC<JobCardProps> = ({
       <div className={styles.header}>
         <div className={styles.titleInfo}>
           <h3 className={styles.role}>{role}</h3>
-          <p className={styles.company}>{company}</p>
+          <p className={styles.company}>🏢 {company}</p>
         </div>
         <div className={styles.matchBadge} style={{ background: match >= 80 ? 'rgba(48, 209, 88, 0.15)' : 'rgba(10, 132, 255, 0.15)', color: match >= 80 ? '#30d158' : '#0a84ff' }}>
           {match}% Match
@@ -60,19 +60,19 @@ export const JobCard: React.FC<JobCardProps> = ({
 
       <div className={styles.tags}>
         {tags.map((t) => (
-          <Badge key={t} variant="info" size="sm">{t}</Badge>
+          <span key={t} className={styles.tag}>{t}</span>
         ))}
       </div>
 
       <p className={styles.description}>{description}</p>
 
       <div className={styles.actions}>
-        <Button variant="secondary" onClick={openUrl} style={{ flex: 1 }}>
+        <button className={styles.btnSecondary} onClick={openUrl}>
           View Details
-        </Button>
-        <Button variant="primary" onClick={openUrl} style={{ flex: 1 }}>
-          Apply
-        </Button>
+        </button>
+        <button className={styles.btnPrimary} onClick={openUrl}>
+          Apply Now 🚀
+        </button>
       </div>
     </div>
   );

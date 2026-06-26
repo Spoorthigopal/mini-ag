@@ -34,7 +34,7 @@ class JSearchClient:
                 "job_type": job_type,
                 "num_pages": 1
             }
-            with httpx.Client(timeout=30.0) as client:
+            with httpx.Client(timeout=60.0) as client:
                 response = client.get(
                     f"{self.base_url}/search",
                     headers=headers,
@@ -46,9 +46,6 @@ class JSearchClient:
             jobs = data.get("data", [])
             return jobs[:limit]
 
-        except httpx.HTTPError as e:
-            logger.error(f"JSearch API error: {e}")
-            raise
         except Exception as e:
             logger.error(f"Error querying JSearch: {e}")
             raise

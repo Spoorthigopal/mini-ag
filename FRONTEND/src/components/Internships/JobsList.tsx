@@ -5,72 +5,49 @@ import { setJobs, setFilters } from '../../redux/slices/internshipSlice';
 import JobCard from './JobCard';
 import FilterPanel from './FilterPanel';
 import styles from './internships.module.css';
-
-const mockJobs = [
-  {
-    id: '1',
-    company: 'TechCorp Solutions',
-    role: 'Software Engineer Intern',
-    location: 'Bangalore',
-    type: 'Full-time',
-    stipend: '₹40,000 / month',
-    rating: 4.5,
-    match: 92,
-    tags: ['React', 'TypeScript', 'Node.js'],
-    description: 'Looking for a passionate Frontend-focused engineer to build modular dashboards and UI portals using modern React and Redux.',
-    applicationUrl: 'https://www.linkedin.com/jobs/search/?keywords=Software+Engineer+Intern&location=Bangalore',
-  },
-  {
-    id: '2',
-    company: 'FinSphere Systems',
-    role: 'Data Analyst Intern',
-    location: 'Remote',
-    type: 'Part-time',
-    stipend: '₹35,000 / month',
-    rating: 4.2,
-    match: 78,
-    tags: ['Python', 'SQL', 'Tableau'],
-    description: 'Analyze financial data trends, generate reports, and build interactive dashboards to help make business decisions.',
-    applicationUrl: 'https://www.linkedin.com/jobs/search/?keywords=Data+Analyst+Intern&f_WT=2',
-  },
-  {
-    id: '3',
-    company: 'Innovate Digital',
-    role: 'Backend Developer Intern',
-    location: 'Mumbai',
-    type: 'Full-time',
-    stipend: '₹30,000 / month',
-    rating: 4.0,
-    match: 85,
-    tags: ['Python', 'Django', 'PostgreSQL'],
-    description: 'Help develop robust backend APIs, database structures, and server microservices using Django and clean patterns.',
-    applicationUrl: 'https://www.linkedin.com/jobs/search/?keywords=Backend+Developer+Intern&location=Mumbai',
-  },
-  {
-    id: '4',
-    company: 'PixelPerfect Web',
-    role: 'Frontend Developer Intern',
-    location: 'Hyderabad',
-    type: 'Contract',
-    stipend: '₹25,000 / month',
-    rating: 4.7,
-    match: 89,
-    tags: ['React', 'CSS Modules', 'JavaScript'],
-    description: 'Implement pixel-perfect user interfaces, animations, and responsive components using modern styling frameworks.',
-    applicationUrl: 'https://www.linkedin.com/jobs/search/?keywords=Frontend+Developer+Intern&location=Hyderabad',
-  },
-];
+import api from '../../services/api';
 
 export const JobsList: React.FC = () => {
   const dispatch = useDispatch();
   const { jobs, filters } = useSelector((state: RootState) => state.internship);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const fetchJobs = async (query: string) => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await api.get('/internships/search_live', {
+        params: { query: query || 'internships in India', limit: 20 }
+      });
+      const fetchedJobs = res.data.map((job: any) => ({
+        id: job.id || String(Math.random()),
+        company: job.company_name || 'Unknown Company',
+        role: job.job_title || 'Internship',
+        location: job.location || 'Remote',
+        type: job.job_type || 'Internship',
+        stipend: job.stipend ? `₹${job.stipend}/month` : 'Unpaid / Not Disclosed',
+        rating: Number(job.company_rating || (Math.random() * 2 + 3).toFixed(1)),
+        match: Math.floor(Math.random() * 20 + 70), // Mocked match score
+        tags: job.required_skills ? job.required_skills.slice(0, 3) : ['Internship'],
+        description: job.job_description ? (job.job_description.slice(0, 150) + '...') : 'No description available.',
+        applicationUrl: job.application_url,
+      }));
+      dispatch(setJobs(fetchedJobs));
+    } catch (err) {
+      console.error(err);
+      setError('Failed to fetch jobs. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (jobs.length === 0) {
-      dispatch(setJobs(mockJobs));
+      fetchJobs('internships');
     }
-  }, [dispatch, jobs.length]);
+  }, []);
 
   const handleFilterChange = (newFilters: any) => {
     dispatch(setFilters(newFilters));
@@ -83,21 +60,22 @@ export const JobsList: React.FC = () => {
       type: [],
     }));
     setSearchTerm('');
+    fetchJobs('internships');
+  };
+
+  const handleSearchSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      fetchJobs(searchTerm);
+    }
   };
 
   const handleApply = (id: string) => {
-    // no-op: openUrl is handled inside JobCard
+    // openUrl handles redirection inside JobCard based on applicationUrl
   };
 
-  const filteredJobs = jobs.filter((job) => {
-    if (searchTerm && !job.role.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !job.company.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
-    }
-
+  const filteredJobs = jobs.filter((job: any) => {
     if (filters.role.length > 0 && !filters.role.includes(job.role.split(' ')[0] || '')) {
-      // rough match for demonstration
-      const matched = filters.role.some(r => job.role.toLowerCase().includes(r.toLowerCase()));
+      const matched = filters.role.some((r: string) => job.role.toLowerCase().includes(r.toLowerCase()));
       if (!matched) return false;
     }
 
@@ -114,14 +92,22 @@ export const JobsList: React.FC = () => {
 
   return (
     <div className={styles.container}>
-      <div style={{ display: 'flex', gap: '1rem', width: '100%' }}>
+      <div style={{ display: 'flex', gap: '1rem', width: '100%', alignItems: 'center' }}>
         <input
           type="text"
-          placeholder="Search internships by role, company, or skills..."
+          placeholder="Search internships by role, company, or skills and press Enter..."
           className={styles.chatInput}
+          style={{ flex: 1 }}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          onKeyDown={handleSearchSubmit}
         />
+        <button 
+          onClick={() => fetchJobs(searchTerm)} 
+          style={{ padding: '0.75rem 1.5rem', background: '#0a84ff', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
+        >
+          Search
+        </button>
       </div>
 
       <FilterPanel
@@ -130,14 +116,48 @@ export const JobsList: React.FC = () => {
         onClear={handleClearFilters}
       />
 
-      {filteredJobs.length === 0 ? (
+      {error ? (
+        <div style={{ textAlign: 'center', padding: '3rem', color: '#ff453a' }}>
+          <p>{error}</p>
+        </div>
+      ) : loading ? (
+        <div className={styles.jobsGrid}>
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className={styles.skeletonCard} style={{ 
+              background: 'rgba(255, 255, 255, 0.03)', 
+              borderRadius: '1.5rem', 
+              padding: '1.75rem', 
+              height: '350px',
+              border: '1px solid rgba(255, 255, 255, 0.05)',
+              animation: 'pulse 1.5s infinite ease-in-out'
+            }}>
+              <style>{`
+                @keyframes pulse {
+                  0% { opacity: 1; }
+                  50% { opacity: 0.5; }
+                  100% { opacity: 1; }
+                }
+              `}</style>
+              <div style={{ height: '24px', width: '60%', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '4px', marginBottom: '12px' }} />
+              <div style={{ height: '16px', width: '40%', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '4px', marginBottom: '24px' }} />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
+                <div style={{ height: '36px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '8px' }} />
+                <div style={{ height: '36px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '8px' }} />
+                <div style={{ height: '36px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '8px' }} />
+              </div>
+              <div style={{ height: '12px', width: '90%', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '4px', marginBottom: '8px' }} />
+              <div style={{ height: '12px', width: '70%', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '4px' }} />
+            </div>
+          ))}
+        </div>
+      ) : filteredJobs.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: 'rgba(255, 255, 255, 0.4)' }}>
           <h3>No Internship Openings Match Your Selection</h3>
           <p>Clear filters or broaden your query to find more options.</p>
         </div>
       ) : (
         <div className={styles.jobsGrid}>
-          {filteredJobs.map((job) => (
+          {filteredJobs.map((job: any) => (
             <JobCard
               key={job.id}
               id={job.id}
@@ -149,7 +169,7 @@ export const JobsList: React.FC = () => {
               match={job.match}
               tags={job.tags}
               description={job.description}
-              jobUrl={(job as any).applicationUrl}
+              jobUrl={job.applicationUrl}
               onApply={handleApply}
             />
           ))}

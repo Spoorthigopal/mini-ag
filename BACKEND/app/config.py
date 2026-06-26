@@ -30,6 +30,7 @@ class Settings(BaseSettings):
 
     # API Keys & External Services (Allow empty defaults to validate manually)
     GOOGLE_API_KEY: str = Field(default="", description="Google Gemini API key")
+    GOOGLE_API_KEY_INTERVIEW: str = Field(default="", description="Google Gemini API key for Interview")
     NVIDIA_API_KEY: str = Field(default="", description="NVIDIA NIM API key")
     PINECONE_API_KEY: str = Field(default="", description="Pinecone database API key")
     PINECONE_INDEX_NAME: str = "studhelper"

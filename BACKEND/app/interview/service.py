@@ -471,19 +471,16 @@ Create a structured study plan with 5-7 topics ordered from foundational to adva
 Return ONLY a JSON array like this: ["Topic 1", "Topic 2", "Topic 3", "Topic 4", "Topic 5"]
 """
         try:
-            # 25-second timeout
-            raw = await asyncio.wait_for(
-                call_gemini(
-                    prompt, 
-                    system_context="You are a curriculum designer. Respond with valid JSON only, no markdown blocks.", 
-                    temperature=0.5,
-                    custom_api_key="AIzaSyCLTCE_qh9EXFmZfozuiGEMdUetSSGb3dA"
-                ),
-                timeout=60.0
+            raw = await call_gemini(
+                prompt, 
+                system_context="You are a curriculum designer. Respond with valid JSON only, no markdown blocks.", 
+                temperature=0.5,
+                max_retries=2,
+                custom_api_key="AIzaSyCLTCE_qh9EXFmZfozuiGEMdUetSSGb3dA"
             )
         except Exception as e:
-            logger.error(f"AI Service Error generating plan: {e}")
-            raise HTTPException(status_code=429, detail="API Rate Limit Exceeded. Your API key's free tier quota (5 requests per minute) has been reached. Please wait 60 seconds and try again.")
+            logger.error(f"LLM Error generating plan: {e}")
+            raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
 
         if raw.startswith("```json"): raw = raw[7:]
         if raw.startswith("```"): raw = raw[3:]
@@ -552,42 +549,32 @@ async def teach_topic(session_id: str, db: Session) -> dict:
     job = db.query(InternshipJob).filter(InternshipJob.id == session.job_id).first()
     job_title = job.job_title if job else "Software Developer"
 
-    prompt = f"""You are a highly empathetic, friendly, and expert tutor teaching "{topic}" (part of learning "{skill}" for a {job_title} role).
-The student's level is "{level}". Speak directly to the user as a friendly mentor.
+    prompt = f"""You are a friendly tutor teaching "{topic}" to a {level} learning "{skill}" for a {job_title} role.
 
-Structure your explanation using these bold headings:
+**The Hook** (2 sentences): Start with a fun, relatable real-world analogy.
 
-**The Hook**
-Start with a fun, relatable real-world analogy (2-3 sentences). Make it conversational and friendly.
+**Easy Explanation** (3-4 sentences): Explain the core idea in plain English anyone can understand.
 
-**The Easy Explanation**
-Explain the core idea of the concept in simple, plain English so that anyone can understand it.
+**Technical Deep-Dive** (4-6 sentences + a short code snippet if relevant): How does it actually work under the hood at a {level} level?
 
-**Let's Get Technical**
-Provide a highly detailed technical explanation of how it works under the hood. Include a code snippet or practical technical examples appropriate for a "{level}" level.
+**Interview Questions**: List 2-3 common interview questions on this topic with brief answer hints.
 
-**Interview Questions**
-List 3 common interview questions related to this topic that they might face for a {job_title} role, along with brief hints on how to answer them.
+**Check-in**: End with one question to test their understanding.
 
-**Check-in Question**
-Ask a thought-provoking question to test their understanding.
-
-Keep it detailed and thorough, around 800 words. Speak naturally like a human tutor."""
+Be concise, warm, and human. Total response: ~350 words."""
 
     try:
-        explanation = await asyncio.wait_for(
-            call_gemini(
-                prompt, 
-                system_context="You are an encouraging, world-class programming tutor. You speak naturally like a human. Give detailed and long explanations with real world examples.", 
-                temperature=0.7, 
-                max_tokens=1500,
-                custom_api_key="AIzaSyCLTCE_qh9EXFmZfozuiGEMdUetSSGb3dA"
-            ),
-            timeout=60.0
+        explanation = await call_gemini(
+            prompt,
+            system_context="You are a friendly, expert programming tutor. Be concise but thorough. Use a conversational, human tone.",
+            temperature=0.7,
+            max_tokens=700,
+            max_retries=2,
+            custom_api_key="AIzaSyCLTCE_qh9EXFmZfozuiGEMdUetSSGb3dA"
         )
     except Exception as e:
-        logger.error(f"AI Service Error teaching topic: {e}")
-        raise HTTPException(status_code=429, detail="API Rate Limit Exceeded. Your API key's free tier quota (5 requests per minute) has been reached. Please wait 60 seconds and try again.")
+        logger.error(f"LLM Error in teach_topic: {e}")
+        raise HTTPException(status_code=500, detail=f"AI service error while teaching topic: {str(e)}")
 
 
     # Store in messages
@@ -657,36 +644,26 @@ async def handle_interaction(
             for m in messages[-6:]
         ])
 
-        prompt = f"""You are a highly empathetic, friendly tutor teaching "{topic}" (in the context of "{skill}") and the student just said/asked:
-"{user_message}"
+        prompt = f"""Student is learning "{topic}" (in "{skill}") and asked: "{user_message}"
 
-Conversation so far:
-{recent_history}
+**Easy Answer** (2-3 sentences): Explain in plain English with a real-world analogy.
+**Technical Answer** (3-5 sentences + code snippet if helpful): Detailed technical explanation.
+**Interview Tip**: One related interview question with a brief answer hint.
 
-Provide a perfectly formatted markdown response. 
-Structure your response to include:
-1. A friendly, easy-to-understand explanation of their question using plain English and real-world analogies.
-2. A detailed technical explanation or code snippet if it helps clarify.
-3. Relevant interview questions they might face on this specific sub-topic.
-
-If they answered correctly, praise them! If confused, explain with a new analogy.
-Always end with a follow-up question to keep the conversation interactive.
-Keep it highly detailed, perfectly formatted, but do not sound like a robot."""
+End with a short follow-up question. Be warm and concise (~250 words)."""
 
         try:
-            response = await asyncio.wait_for(
-                call_gemini(
-                    prompt, 
-                    system_context="You are an expert, friendly, and deeply empathetic tutor. You give detailed and deeply insightful explanations.", 
-                    temperature=0.6, 
-                    max_tokens=1000,
-                    custom_api_key="AIzaSyCLTCE_qh9EXFmZfozuiGEMdUetSSGb3dA"
-                ),
-                timeout=60.0
+            response = await call_gemini(
+                prompt,
+                system_context="You are a friendly, expert tutor. Be concise, clear, and use a conversational tone.",
+                temperature=0.6,
+                max_tokens=600,
+                max_retries=2,
+                custom_api_key="AIzaSyCLTCE_qh9EXFmZfozuiGEMdUetSSGb3dA"
             )
         except Exception as e:
-            logger.error(f"AI Service Error during interaction: {e}")
-            raise HTTPException(status_code=429, detail="API Rate Limit Exceeded. Your API key's free tier quota (5 requests per minute) has been reached. Please wait 60 seconds and try again.")
+            logger.error(f"LLM Error in go_deeper: {e}")
+            raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
 
 
         messages.append({

@@ -168,39 +168,31 @@ export const MockInterview: React.FC = () => {
     }
   };
 
-  const fetchTopicAtIndex = useCallback(async (sess: StudySession, targetIndex: number) => {
+  // Fetch explanation for whatever topic the session currently points to
+  const fetchCurrentTopicExplanation = useCallback(async (sess: StudySession) => {
     setIsLoading(true);
     setIsDeepMode(false);
     try {
-      let res;
-      if (targetIndex === sess.current_topic_index) {
-        // Just teach the current index
-        res = await api.post('/interview/study/teach', { session_id: sess.session_id });
-      } else {
-        // Jump to a specific topic
-        res = await api.post('/interview/study/interact', {
-          session_id: sess.session_id,
-          action: 'jump_to_topic',
-          message: String(targetIndex),
-        });
-      }
+      const res = await api.post('/interview/study/teach', { session_id: sess.session_id });
       const data = res.data;
       if (data.is_complete) setPhase('complete');
       setCurrentTopicLabel(data.topic);
       setSession(prev => prev ? { ...prev, current_topic_index: data.current_index } : prev);
-      setSkillSessions(prev => {
-        if (!prev[sess.skill]) return prev;
-        return { ...prev, [sess.skill]: { ...prev[sess.skill], current_topic_index: data.current_index } };
-      });
+      setSkillSessions(prev =>
+        prev[sess.skill]
+          ? { ...prev, [sess.skill]: { ...prev[sess.skill], current_topic_index: data.current_index } }
+          : prev
+      );
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: `### 📖 Topic ${data.current_index + 1}: ${data.topic}\n\n${data.explanation}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }]);
     } catch (e: any) {
+      const detail = e?.response?.data?.detail || e.message;
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `⚠️ **AI Error**\n\n${e?.response?.data?.detail || e.message}`,
+        content: `⚠️ **Error loading topic:** ${detail}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }]);
     } finally {
@@ -208,25 +200,103 @@ export const MockInterview: React.FC = () => {
     }
   }, []);
 
+  // Start from a specific topic index (jump)
   const handleStartFromTopic = async (topicIndex: number) => {
     if (!session) return;
     setPhase('learning');
     setMessages([]);
-    await fetchTopicAtIndex(session, topicIndex);
+    if (topicIndex === 0 && session.current_topic_index === 0) {
+      // Fresh start
+      await fetchCurrentTopicExplanation(session);
+    } else {
+      // Jump to specific index via interact
+      setIsLoading(true);
+      setIsDeepMode(false);
+      try {
+        const res = await api.post('/interview/study/interact', {
+          session_id: session.session_id,
+          action: 'jump_to_topic',
+          message: String(topicIndex),
+        });
+        const data = res.data;
+        if (data.is_complete) setPhase('complete');
+        setCurrentTopicLabel(data.topic);
+        setSession(prev => prev ? { ...prev, current_topic_index: data.current_index } : prev);
+        setMessages([{
+          role: 'assistant',
+          content: `### 📖 Topic ${data.current_index + 1}: ${data.topic}\n\n${data.explanation}`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }]);
+      } catch (e: any) {
+        const detail = e?.response?.data?.detail || e.message;
+        setMessages([{ role: 'assistant', content: `⚠️ **Error:** ${detail}`, timestamp: '' }]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
   };
 
   const handleMoveNext = async () => {
     if (!session || isLoading) return;
-    const nextIdx = (session.current_topic_index || 0) + 1;
-    if (nextIdx >= session.topics.length) {
-      setPhase('complete');
-      return;
-    }
+    setIsDeepMode(false);
     setMessages(prev => [...prev, {
       role: 'user', content: '➡️ Move to next topic',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }]);
-    await fetchTopicAtIndex(session, nextIdx);
+    setIsLoading(true);
+    try {
+      const res = await api.post('/interview/study/interact', {
+        session_id: session.session_id, action: 'move_next', message: '',
+      });
+      const data = res.data;
+      if (data.is_complete) setPhase('complete');
+      setCurrentTopicLabel(data.topic);
+      setSession(prev => prev ? { ...prev, current_topic_index: data.current_index } : prev);
+      setSkillSessions(prev =>
+        prev[session.skill]
+          ? { ...prev, [session.skill]: { ...prev[session.skill], current_topic_index: data.current_index } }
+          : prev
+      );
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `### 📖 Topic ${data.current_index + 1}: ${data.topic}\n\n${data.explanation}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }]);
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail || e.message;
+      setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ **Error:** ${detail}`, timestamp: '' }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSkipToTopic = async (idx: number) => {
+    if (!session || isLoading) return;
+    setMessages(prev => [...prev, {
+      role: 'user', content: `⏭️ Jumping to: ${session.topics[idx]}`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    }]);
+    setIsLoading(true);
+    setIsDeepMode(false);
+    try {
+      const res = await api.post('/interview/study/interact', {
+        session_id: session.session_id, action: 'jump_to_topic', message: String(idx),
+      });
+      const data = res.data;
+      if (data.is_complete) setPhase('complete');
+      setCurrentTopicLabel(data.topic);
+      setSession(prev => prev ? { ...prev, current_topic_index: data.current_index } : prev);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `### 📖 Topic ${data.current_index + 1}: ${data.topic}\n\n${data.explanation}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }]);
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail || e.message;
+      setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ **Error:** ${detail}`, timestamp: '' }]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleMovePrev = async () => {
@@ -237,17 +307,9 @@ export const MockInterview: React.FC = () => {
       role: 'user', content: '⬅️ Going back to previous topic',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }]);
-    await fetchTopicAtIndex(session, prevIdx);
+    await handleSkipToTopic(prevIdx);
   };
 
-  const handleSkipToTopic = async (idx: number) => {
-    if (!session || isLoading) return;
-    setMessages(prev => [...prev, {
-      role: 'user', content: `⏭️ Jumping to: ${session.topics[idx]}`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    }]);
-    await fetchTopicAtIndex(session, idx);
-  };
 
   const handleSendQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
