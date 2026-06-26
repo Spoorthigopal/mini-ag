@@ -1,58 +1,38 @@
 .hero {
   position: relative;
   overflow: hidden;
-  padding: 6rem 2rem;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%), url('/hero-bg.png');
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  padding: 6rem 4rem;
+  background: linear-gradient(to right, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.7) 60%, rgba(15, 23, 42, 0.3) 100%), url('/hero-bg.png');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
   color: #fff;
-  text-align: center;
+  text-align: left;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .orbContainer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-  mix-blend-mode: screen;
-}
-
-.orb {
-  position: absolute;
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle at center, hsla(210, 100%, 60%, 0.15), transparent);
-  border-radius: 50%;
-  animation: float 10s infinite ease-in-out alternate;
-  filter: blur(40px);
-}
-
-.orb:nth-child(1) { top: -100px; left: -100px; }
-.orb:nth-child(2) { top: 20%; right: -150px; animation-delay: -3s; }
-.orb:nth-child(3) { bottom: -150px; left: 30%; animation-delay: -6s; }
-
-@keyframes float {
-  0% { transform: translateY(0) scale(1); }
-  100% { transform: translateY(-40px) scale(1.1); }
+  display: none;
 }
 
 .content {
   position: relative;
   z-index: 1;
-  max-width: 900px;
-  margin: 0 auto;
+  max-width: 650px;
+  margin: 0;
+  animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .title {
-  font-size: 3rem;
-  margin-bottom: 1rem;
+  font-size: 3.5rem;
+  line-height: 1.1;
+  margin-bottom: 1.25rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  background: linear-gradient(to right, #ffffff, #a5b4fc);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #ffffff;
 }
 
 .subtitle {
@@ -60,5 +40,27 @@
   opacity: 0.9;
   line-height: 1.6;
   font-weight: 400;
-  color: #cbd5e1;
+  color: #e2e8f0;
+  margin-bottom: 2rem;
+}
+
+@keyframes slideUp {
+  0% { transform: translateY(30px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@media (max-width: 768px) {
+  .hero {
+    padding: 6rem 2rem;
+    min-height: 60vh;
+    background: linear-gradient(to bottom, rgba(15, 23, 42, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%), url('/hero-bg.png');
+    background-size: cover;
+    background-position: center;
+    text-align: center;
+    justify-content: center;
+  }
+  
+  .title {
+    font-size: 2.5rem;
+  }
 }

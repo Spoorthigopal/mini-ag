@@ -30,6 +30,17 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
+// Public Route Component (redirects to dashboard if already logged in)
+const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isLoggedIn } = useSelector((state: RootState) => state.auth);
+  
+  if (isLoggedIn || isAuthenticated()) {
+    return <Navigate to="/" replace />;
+  }
+  
+  return <>{children}</>;
+};
+
 export const App: React.FC = () => {
   const dispatch = useDispatch();
 
@@ -49,8 +60,16 @@ export const App: React.FC = () => {
     <BrowserRouter>
       <Routes>
         {/* Auth routes */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/login" element={
+          <PublicRoute>
+            <LoginPage />
+          </PublicRoute>
+        } />
+        <Route path="/register" element={
+          <PublicRoute>
+            <RegisterPage />
+          </PublicRoute>
+        } />
 
         {/* Protected app routes inside MainLayout */}
         <Route 
