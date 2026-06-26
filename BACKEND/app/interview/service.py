@@ -1,3 +1,4 @@
+import asyncio
 from sqlalchemy.orm import Session
 from app.interview.models import InterviewSession, InterviewFeedback
 from app.internships.models import InternshipJob
@@ -400,6 +401,43 @@ def cleanup_expired_sessions(db: Session) -> int:
 
 # ─── STUDY COACH FUNCTIONS ────────────────────────────────────────────────────
 
+STATIC_PLANS = {
+    "React": {
+        "Beginner": ["What is React and how browsers render UI", "JSX syntax and writing your first component", "Props: passing data between components", "State with useState hook", "Handling events and user input", "useEffect and side effects", "Fetching data from an API"],
+        "Intermediate": ["React component lifecycle deep-dive", "useContext and avoiding prop drilling", "useReducer for complex state", "Custom hooks and reusability", "React Router and navigation", "Performance with useMemo and useCallback", "React Query for server state"],
+        "Expert": ["Concurrent rendering and Suspense", "Server Components (React 18+)", "Code splitting and lazy loading", "Advanced patterns: compound components", "Testing with React Testing Library", "Micro-frontend architecture", "Performance profiling and optimization"],
+    },
+    "TypeScript": {
+        "Beginner": ["Types vs interfaces and when to use each", "Basic generics", "Union and intersection types", "Type narrowing and guards", "Working with arrays and tuples"],
+        "Intermediate": ["Utility types (Partial, Pick, Omit)", "Conditional types", "Template literal types", "Module augmentation", "Decorators and metadata"],
+        "Expert": ["Infer keyword and type inference tricks", "Higher-kinded types patterns", "Complex generic constraints", "Declaration files (.d.ts)", "TypeScript compiler API"],
+    },
+    "Python": {
+        "Beginner": ["Python data types and variables", "Control flow: if/else, loops", "Functions and scope", "Lists, dicts, sets and tuples", "File I/O and exceptions"],
+        "Intermediate": ["Object-oriented programming in Python", "List comprehensions and generators", "Decorators and closures", "Modules, packages and pip", "Working with APIs using requests"],
+        "Expert": ["Async/await with asyncio", "Metaclasses and descriptors", "Performance: profiling and optimisation", "C extensions and Cython basics", "Writing library-quality code"],
+    },
+    "SQL": {
+        "Beginner": ["SELECT, WHERE, ORDER BY basics", "JOINs: INNER, LEFT, RIGHT", "Aggregate functions: COUNT, SUM, AVG", "GROUP BY and HAVING", "INSERT, UPDATE, DELETE"],
+        "Intermediate": ["Subqueries and CTEs", "Window functions: ROW_NUMBER, RANK", "Indexes and query plans", "Transactions and ACID", "Stored procedures and triggers"],
+        "Expert": ["Query optimisation and execution plans", "Partitioning and sharding strategies", "Replication and high availability", "Full-text search", "Database normalisation to BCNF/4NF"],
+    },
+}
+
+def _get_static_plan(skill: str, level: str) -> list:
+    """Return a static study plan when Gemini is unavailable."""
+    plan = STATIC_PLANS.get(skill, {}).get(level, None)
+    if plan:
+        return plan
+    return [
+        f"Fundamentals of {skill}",
+        f"Core concepts in {skill}",
+        f"Practical {skill} examples",
+        f"Advanced {skill} patterns",
+        f"Best practices for {skill} in production",
+    ]
+
+
 async def generate_study_plan(
     user_id: str,
     job_id: str,
@@ -412,43 +450,59 @@ async def generate_study_plan(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    job = db.query(InternshipJob).filter(InternshipJob.id == job_id).first()
-    job_title = job.job_title if job else "Software Developer"
+    job = None
+    if job_id:
+        try:
+            uuid.UUID(str(job_id))
+            job = db.query(InternshipJob).filter(InternshipJob.id == job_id).first()
+        except ValueError:
+            pass
 
-    prompt = f"""You are an expert educator and study plan designer.
+    job_title = job.job_title if job else "Software Developer"
+    valid_job_id = job.id if job else None
+
+    # Try Gemini first; fall back to static plan if quota is exceeded
+    topics = []
+    try:
+        prompt = f"""You are an expert educator and study plan designer.
 A student wants to learn "{skill}" for a "{job_title}" role. Their self-rated level is: {user_level}.
 
 Create a structured study plan with 5-7 topics ordered from foundational to advanced.
-Each topic should be a clear, specific concept (not vague like "Introduction").
-
-Return ONLY a JSON array like this:
-["Topic 1 Name", "Topic 2 Name", "Topic 3 Name", "Topic 4 Name", "Topic 5 Name"]
-
-Make topics specific and actionable. Example for React Beginner: 
-["What is React and how browsers render components", "JSX syntax and writing your first component", "Props: passing data between components", "State with useState hook", "Handling events and user input", "useEffect and lifecycle basics", "Fetching data from an API"]
+Return ONLY a JSON array like this: ["Topic 1", "Topic 2", "Topic 3", "Topic 4", "Topic 5"]
 """
-    raw = await call_gemini(prompt, system_context="You are a curriculum designer. Respond with JSON only.")
-    
-    # Parse the topics list
-    start = raw.find("[")
-    end = raw.rfind("]") + 1
-    topics = []
-    if start != -1 and end > start:
         try:
-            topics = json.loads(raw[start:end])
-        except Exception:
-            topics = [f"Introduction to {skill}", f"Core Concepts of {skill}", f"Practical {skill} Applications",
-                      f"Advanced {skill} Patterns", f"Best Practices for {skill}"]
-    
-    if not topics:
-        topics = [f"Introduction to {skill}", f"Core Concepts of {skill}", f"Practical {skill} Applications",
-                  f"Advanced {skill} Patterns", f"Best Practices for {skill}"]
+            # 25-second timeout
+            raw = await asyncio.wait_for(
+                call_gemini(
+                    prompt, 
+                    system_context="You are a curriculum designer. Respond with valid JSON only, no markdown blocks.", 
+                    temperature=0.5,
+                    custom_api_key="AIzaSyCLTCE_qh9EXFmZfozuiGEMdUetSSGb3dA"
+                ),
+                timeout=60.0
+            )
+        except Exception as e:
+            logger.error(f"AI Service Error generating plan: {e}")
+            raise HTTPException(status_code=429, detail="API Rate Limit Exceeded. Your API key's free tier quota (5 requests per minute) has been reached. Please wait 60 seconds and try again.")
 
-    # Create a session
+        if raw.startswith("```json"): raw = raw[7:]
+        if raw.startswith("```"): raw = raw[3:]
+        if raw.endswith("```"): raw = raw[:-3]
+        raw = raw.strip()
+        start = raw.find("[")
+        end = raw.rfind("]") + 1
+        if start != -1 and end > start:
+            topics = json.loads(raw[start:end])
+    except Exception as e:
+        logger.warning(f"Gemini unavailable for study plan, using static fallback: {e}")
+
+    if not topics:
+        topics = _get_static_plan(skill, user_level)
+
     session_uuid = str(uuid.uuid4())
     session = InterviewSession(
         user_id=user_id,
-        job_id=job_id,
+        job_id=valid_job_id,
         session_id=session_uuid,
         started_at=datetime.utcnow(),
         status="active",
@@ -486,7 +540,7 @@ async def teach_topic(session_id: str, db: Session) -> dict:
         return {
             "session_id": session_id,
             "topic": "All topics completed!",
-            "explanation": "🎉 Congratulations! You've completed the entire study plan. You should now have a solid understanding of the skill. Keep practising!",
+            "explanation": "🎉 **Congratulations!** You've completed the entire study plan. You should now have a solid understanding of the skill. Keep practising, and you'll do great in your interviews!",
             "current_index": idx,
             "total_topics": len(topics),
             "is_complete": True
@@ -498,24 +552,49 @@ async def teach_topic(session_id: str, db: Session) -> dict:
     job = db.query(InternshipJob).filter(InternshipJob.id == session.job_id).first()
     job_title = job.job_title if job else "Software Developer"
 
-    prompt = f"""You are a warm, engaging tutor teaching "{topic}" (part of learning "{skill}" for a {job_title} role).
-The student is a "{level}".
+    prompt = f"""You are a highly empathetic, friendly, and expert tutor teaching "{topic}" (part of learning "{skill}" for a {job_title} role).
+The student's level is "{level}". Speak directly to the user as a friendly mentor.
 
-Structure your explanation like this:
-1. **Hook** - Start with a relatable real-world analogy or story (2-3 sentences). Make it conversational, NOT textbook-style.
-2. **The Core Idea** - Explain the concept in plain English first. Then give a short, concrete real-world example (e.g., how Instagram, Spotify, or Uber uses this).
-3. **Let's Get Technical** - Now explain the technical details, with a short code snippet if applicable (keep it under 12 lines).
-4. **Key Takeaway** - One sentence summary of the most important thing to remember.
+Structure your explanation using these bold headings:
 
-Keep the TOTAL response under 500 words. Be encouraging and human. Do not use bullet points for the overall structure - use flowing paragraphs with bold headings."""
+**The Hook**
+Start with a fun, relatable real-world analogy (2-3 sentences). Make it conversational and friendly.
 
-    explanation = await call_gemini(prompt, system_context="You are an encouraging, world-class programming tutor.", temperature=0.4, max_tokens=800)
+**The Easy Explanation**
+Explain the core idea of the concept in simple, plain English so that anyone can understand it.
+
+**Let's Get Technical**
+Provide a highly detailed technical explanation of how it works under the hood. Include a code snippet or practical technical examples appropriate for a "{level}" level.
+
+**Interview Questions**
+List 3 common interview questions related to this topic that they might face for a {job_title} role, along with brief hints on how to answer them.
+
+**Check-in Question**
+Ask a thought-provoking question to test their understanding.
+
+Keep it detailed and thorough, around 800 words. Speak naturally like a human tutor."""
+
+    try:
+        explanation = await asyncio.wait_for(
+            call_gemini(
+                prompt, 
+                system_context="You are an encouraging, world-class programming tutor. You speak naturally like a human. Give detailed and long explanations with real world examples.", 
+                temperature=0.7, 
+                max_tokens=1500,
+                custom_api_key="AIzaSyCLTCE_qh9EXFmZfozuiGEMdUetSSGb3dA"
+            ),
+            timeout=60.0
+        )
+    except Exception as e:
+        logger.error(f"AI Service Error teaching topic: {e}")
+        raise HTTPException(status_code=429, detail="API Rate Limit Exceeded. Your API key's free tier quota (5 requests per minute) has been reached. Please wait 60 seconds and try again.")
+
 
     # Store in messages
     messages = list(session.messages_json or [])
     messages.append({
         "role": "assistant",
-        "content": f"**Topic {idx + 1}: {topic}**\n\n{explanation}",
+        "content": f"{explanation}",
         "timestamp": datetime.utcnow().isoformat(),
         "topic_index": idx
     })
@@ -557,7 +636,7 @@ async def handle_interaction(
         session.current_topic_index = new_idx
         messages.append({
             "role": "user",
-            "content": "Move to next topic →",
+            "content": "➡️ Let's move to the next topic",
             "timestamp": datetime.utcnow().isoformat()
         })
         session.messages_json = messages
@@ -578,15 +657,37 @@ async def handle_interaction(
             for m in messages[-6:]
         ])
 
-        prompt = f"""You are teaching "{topic}" (in the context of "{skill}") and the student asked:
+        prompt = f"""You are a highly empathetic, friendly tutor teaching "{topic}" (in the context of "{skill}") and the student just said/asked:
 "{user_message}"
 
 Conversation so far:
 {recent_history}
 
-Answer their question in a helpful, human way. Give a real-world example if possible. Be concise (under 300 words). If they ask to go even deeper on a sub-concept, do so enthusiastically."""
+Provide a perfectly formatted markdown response. 
+Structure your response to include:
+1. A friendly, easy-to-understand explanation of their question using plain English and real-world analogies.
+2. A detailed technical explanation or code snippet if it helps clarify.
+3. Relevant interview questions they might face on this specific sub-topic.
 
-        response = await call_gemini(prompt, system_context="You are an expert, encouraging tutor.", temperature=0.5, max_tokens=600)
+If they answered correctly, praise them! If confused, explain with a new analogy.
+Always end with a follow-up question to keep the conversation interactive.
+Keep it highly detailed, perfectly formatted, but do not sound like a robot."""
+
+        try:
+            response = await asyncio.wait_for(
+                call_gemini(
+                    prompt, 
+                    system_context="You are an expert, friendly, and deeply empathetic tutor. You give detailed and deeply insightful explanations.", 
+                    temperature=0.6, 
+                    max_tokens=1000,
+                    custom_api_key="AIzaSyCLTCE_qh9EXFmZfozuiGEMdUetSSGb3dA"
+                ),
+                timeout=60.0
+            )
+        except Exception as e:
+            logger.error(f"AI Service Error during interaction: {e}")
+            raise HTTPException(status_code=429, detail="API Rate Limit Exceeded. Your API key's free tier quota (5 requests per minute) has been reached. Please wait 60 seconds and try again.")
+
 
         messages.append({
             "role": "assistant",
@@ -606,7 +707,19 @@ Answer their question in a helpful, human way. Give a real-world example if poss
             "action": "go_deeper"
         }
 
-    raise HTTPException(status_code=400, detail="Invalid action. Use 'go_deeper' or 'move_next'.")
+    elif action == "jump_to_topic":
+        # Jump to a specific topic index
+        try:
+            target_index = int(user_message)  # user_message holds the target index
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid topic index")
+        if target_index < 0 or target_index >= len(topics):
+            raise HTTPException(status_code=400, detail="Topic index out of range")
+        session.current_topic_index = target_index
+        db.commit()
+        return await teach_topic(session_id, db)
+
+    raise HTTPException(status_code=400, detail="Invalid action. Use 'go_deeper', 'move_next', or 'jump_to_topic'.")
 
 
 async def resume_session(session_id: str, db: Session) -> dict:

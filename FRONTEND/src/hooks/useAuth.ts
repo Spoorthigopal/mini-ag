@@ -14,7 +14,8 @@ export const useAuth = () => {
       setError(null);
       dispatch(setLoading(true));
       const response = await authService.login(email, password);
-      const { user, token } = response.data;
+      const user = response.data.user;
+      const token = response.data.access_token;
       
       dispatch(loginAction({ user, token }));
       navigate('/');
@@ -32,7 +33,8 @@ export const useAuth = () => {
       setError(null);
       dispatch(setLoading(true));
       const response = await authService.register(email, password);
-      const { user, token } = response.data;
+      const user = response.data.user;
+      const token = response.data.access_token;
       
       dispatch(loginAction({ user, token }));
       navigate('/');

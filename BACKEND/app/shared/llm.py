@@ -21,7 +21,9 @@ try:
         temperature=0.7,
         max_output_tokens=2048,
         top_p=0.95,
-        top_k=40
+        top_k=40,
+        convert_system_message_to_human=True,
+        max_retries=0  # Disable LangChain internal retries; our code handles fallback
     )
 except Exception:
     llm = None
@@ -43,7 +45,9 @@ def get_gemini_client() -> ChatGoogleGenerativeAI:
             temperature=0.7,
             max_output_tokens=2048,
             top_p=0.95,
-            top_k=40
+            top_k=40,
+            convert_system_message_to_human=True,
+            max_retries=0  # Disable LangChain internal retries
         )
         return _gemini_client
     except Exception as e:
@@ -55,7 +59,8 @@ async def call_gemini(
     system_context: str = "",
     temperature: float = 0.7,
     max_tokens: int = 2048,
-    max_retries: int = 3
+    max_retries: int = 3,
+    custom_api_key: str = None
 ) -> str:
     """
     Call Gemini with retry logic, exponential backoff, and rate limit handling.
@@ -66,16 +71,18 @@ async def call_gemini(
     # Get standard client
     client = get_gemini_client()
     
-    # If custom temperature/tokens are requested, instantiate a configured client
-    if temperature != 0.7 or max_tokens != 2048:
-        api_key = settings.GOOGLE_API_KEY or settings.gemini_api_key
+    # If custom key or custom temperature/tokens are requested, instantiate a configured client
+    if custom_api_key or temperature != 0.7 or max_tokens != 2048:
+        api_key = custom_api_key or settings.GOOGLE_API_KEY or settings.gemini_api_key
         client = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             google_api_key=api_key,
             temperature=temperature,
             max_output_tokens=max_tokens,
             top_p=0.95,
-            top_k=40
+            top_k=40,
+            convert_system_message_to_human=True,
+            max_retries=0  # Disable LangChain internal retries
         )
 
     messages = []
@@ -119,16 +126,14 @@ async def call_gemini(
                 "ResourceExhausted" in error_class
             )
             
-            if is_rate_limit:
-                if not rate_limited_retried:
-                    logger.warning("Rate limit hit. Waiting 60 seconds before retrying once...")
-                    await asyncio.sleep(60)
-                    rate_limited_retried = True
-                    # Keep same attempt count for rate limit retry
-                    continue
-                else:
-                    logger.error("Rate limit hit again after wait period. Raising AIServiceError.")
-                    raise AIServiceError(f"Gemini rate limit exceeded: {error_msg}")
+            if is_rate_limit and attempt < max_retries:
+                sleep_time = (2 ** attempt) + 3 # Backoff: 5s, 7s, 11s
+                logger.info(f"Rate limit hit. Sleeping for {sleep_time}s and retrying...")
+                await asyncio.sleep(sleep_time)
+                attempt += 1
+                continue
+            elif is_rate_limit:
+                raise AIServiceError(f"Gemini rate limit exceeded after {max_retries} retries: {error_msg}")
             
             # Check for Connection or Timeout Errors
             is_timeout_or_conn = (

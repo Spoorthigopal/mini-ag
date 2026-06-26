@@ -64,6 +64,12 @@ def get_db() -> Generator[Session, None, None]:
         # Commit if active and no exception occurred
         if db.is_active:
             db.commit()
+    except (AppException, HTTPException):
+        # Let AppException subclasses (AIServiceError, etc.) and FastAPI HTTPExceptions
+        # propagate as-is without wrapping them in DatabaseConnectionError
+        if db:
+            db.rollback()
+        raise
     except Exception as e:
         if db:
             db.rollback()

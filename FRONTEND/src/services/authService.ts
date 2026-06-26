@@ -33,8 +33,8 @@ export const login = async (
     email,
     password,
   });
-  if (response.data?.token) {
-    setToken(response.data.token);
+  if (response.data?.access_token) {
+    setToken(response.data.access_token);
   }
   return response;
 };
@@ -48,8 +48,8 @@ export const register = async (
     email,
     password,
   });
-  if (response.data?.token) {
-    setToken(response.data.token);
+  if (response.data?.access_token) {
+    setToken(response.data.access_token);
   }
   return response;
 };

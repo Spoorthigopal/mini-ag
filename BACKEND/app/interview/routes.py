@@ -337,26 +337,55 @@ async def resume_study_session(
 @router.get("/study/user-sessions", status_code=200)
 async def get_user_study_sessions(
     job_id: str = Query(None),
+    skill: str = Query(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get the most recent active study session for the user and job."""
+    """Get all active study sessions for the user.
+    - With skill param: returns single session for that skill.
+    - Without skill: returns dict of all sessions keyed by skill.
+    """
+    import uuid
     query = db.query(InterviewSession).filter(
         InterviewSession.user_id == current_user.id,
         InterviewSession.skill_focus.isnot(None),
         InterviewSession.status == "active"
     )
+    # Filter by job_id if valid UUID
     if job_id:
-        query = query.filter(InterviewSession.job_id == job_id)
-    
-    session = query.order_by(InterviewSession.started_at.desc()).first()
-    if not session:
-        return None
-    return {
-        "session_id": session.session_id,
-        "skill": session.skill_focus,
-        "level": session.user_level,
-        "topics": session.study_plan or [],
-        "current_topic_index": session.current_topic_index or 0,
-        "status": session.status
-    }
+        try:
+            uuid.UUID(str(job_id))
+            query = query.filter(InterviewSession.job_id == job_id)
+        except ValueError:
+            pass  # non-UUID job_id — skip filter
+
+    # Filter by skill if provided
+    if skill:
+        session = query.filter(
+            InterviewSession.skill_focus == skill
+        ).order_by(InterviewSession.started_at.desc()).first()
+        if not session:
+            return {}
+        return {
+            "session_id": session.session_id,
+            "skill": session.skill_focus,
+            "level": session.user_level,
+            "topics": session.study_plan or [],
+            "current_topic_index": session.current_topic_index or 0,
+            "status": session.status
+        }
+
+    # Return all sessions keyed by skill (most recent per skill)
+    sessions = query.order_by(InterviewSession.started_at.desc()).all()
+    result = {}
+    for s in sessions:
+        if s.skill_focus and s.skill_focus not in result:
+            result[s.skill_focus] = {
+                "session_id": s.session_id,
+                "skill": s.skill_focus,
+                "level": s.user_level,
+                "topics": s.study_plan or [],
+                "current_topic_index": s.current_topic_index or 0,
+                "status": s.status
+            }
+    return result
