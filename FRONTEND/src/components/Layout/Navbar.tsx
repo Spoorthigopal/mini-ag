@@ -30,7 +30,7 @@ export const Navbar: React.FC = () => {
             {mobileOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
           <Link to="/" className={styles.brand}>
-            <img src="/logo.png" alt="GRADSphere Logo" className={styles.logoImage} />
+            <img src="/logo.svg" alt="GRADSphere Logo" className={styles.logoImage} />
           </Link>
         </div>
 

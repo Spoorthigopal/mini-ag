@@ -45,14 +45,9 @@ export const App: React.FC = () => {
   const dispatch = useDispatch();
 
   useEffect(() => {
-    // Restore auth user session if token exists in localStorage
+    // Remove the mock user 'Alex Mercer' and force login initially
     if (isAuthenticated()) {
-      dispatch(setUser({
-        id: '1',
-        email: 'student@university.edu',
-        name: 'Alex Mercer',
-        role: 'Student',
-      }));
+      localStorage.removeItem('token');
     }
   }, [dispatch]);
 

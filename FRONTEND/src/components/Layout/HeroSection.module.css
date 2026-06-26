@@ -5,10 +5,7 @@
   display: flex;
   align-items: center;
   padding: 6rem 4rem;
-  background: linear-gradient(to right, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.7) 60%, rgba(15, 23, 42, 0.3) 100%), url('/hero-bg.png');
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
+  background: transparent;
   color: #fff;
   text-align: left;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
