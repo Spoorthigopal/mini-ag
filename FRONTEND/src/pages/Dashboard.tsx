@@ -97,7 +97,7 @@ export const Dashboard: React.FC = () => {
                 gap: '0.5rem',
               }}
             >
-              Access Module
+              Explore
             </Button>
           </Card>
         ))}
