@@ -27,8 +27,8 @@ export const RegisterForm: React.FC = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setValidationError('Password must be at least 6 characters long.');
+    if (password.length < 8) {
+      setValidationError('Password must be at least 8 characters long.');
       return;
     }
 
