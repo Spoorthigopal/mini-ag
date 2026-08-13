@@ -183,11 +183,12 @@
 }
 
 .docActionsGrid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  display: flex;
   gap: 0.5rem;
   margin-top: auto;
+  flex-wrap: wrap;
 }
+
 
 .actionIconButton {
   display: flex;
@@ -223,6 +224,138 @@
 .deleteBtn:hover {
   background: rgba(255, 69, 58, 0.2);
 }
+
+/* Edit button (inactive) */
+.editBtn {
+  background: rgba(100, 210, 255, 0.08);
+  color: rgba(100, 210, 255, 0.7);
+}
+
+.editBtn:hover {
+  background: rgba(100, 210, 255, 0.18);
+  color: #64d2ff;
+}
+
+/* Edit button (active / panel open) */
+.editBtnActive {
+  background: rgba(100, 210, 255, 0.22);
+  color: #64d2ff;
+  box-shadow: 0 0 0 2px rgba(100, 210, 255, 0.25);
+}
+
+/* ── Edit Panel ── */
+.editPanel {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.editSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding-bottom: 0.875rem;
+}
+
+.editSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+
+.editSectionLabel {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.editTriggerBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.75rem;
+  cursor: pointer;
+  width: 100%;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.editTriggerBtn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.editActionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  border: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.editActionBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.editActionBtn:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+/* Feedback messages inside the edit panel */
+.msgSuccess {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: #30d158;
+  background: rgba(48, 209, 88, 0.1);
+  border: 1px solid rgba(48, 209, 88, 0.25);
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.625rem;
+}
+
+.msgError {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: #ff453a;
+  background: rgba(255, 69, 58, 0.1);
+  border: 1px solid rgba(255, 69, 58, 0.25);
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.625rem;
+}
+
+
 
 .encryptedBadge {
   position: absolute;
