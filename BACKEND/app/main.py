@@ -76,14 +76,14 @@ async def startup_event():
 
     from app.shared.scheduler import start_scheduler
     start_scheduler()
-    logger.info("STU-MINI API started successfully")
+    logger.info("GradSphere API started successfully")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     from app.shared.scheduler import stop_scheduler
     stop_scheduler()
-    logger.info("STU-MINI API shutdown complete")
+    logger.info("GradSphere API shutdown complete")
 
 
 @app.get("/health")
