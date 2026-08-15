@@ -26,35 +26,46 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/interview", tags=["interview"])
 
-# Rate Limit Storage
-# Key: user_id, Value: list of timestamps of requests within the last minute
+
+# ─── RATE LIMITING ────────────────────────────────────────────────────────────
+# Simple in-memory store: maps user_id → list of request timestamps
 rate_limit_store = {}
 
 
 def check_rate_limit(user_id: str, limit: int = 5, period: int = 60) -> bool:
     """
-    Checks if a user has exceeded rate limits (5 requests/minute).
+    Enforce a per-user rate limit of `limit` requests per `period` seconds.
+
+    Returns True if the request is allowed, False if the limit is exceeded.
+    Uses a sliding-window approach backed by an in-memory dict.
     """
     now = time.time()
     if user_id not in rate_limit_store:
         rate_limit_store[user_id] = []
-    
-    # Filter out timestamps older than the period
-    rate_limit_store[user_id] = [t for t in rate_limit_store[user_id] if now - t < period]
-    
+
+    # Discard timestamps outside the current window
+    rate_limit_store[user_id] = [
+        t for t in rate_limit_store[user_id] if now - t < period
+    ]
+
     if len(rate_limit_store[user_id]) >= limit:
         return False
-        
+
     rate_limit_store[user_id].append(now)
     return True
 
 
+# ─── RESPONSE MODELS ──────────────────────────────────────────────────────────
+
 class FeedbackSummaryWithDetails(BaseModel):
+    """Combined response model: aggregated metrics + per-question feedback list."""
     summary: InterviewSummary
     feedback: List[FeedbackSchema]
 
 
-# ENDPOINT 1: POST /api/interview/start
+# ─── MOCK INTERVIEW ENDPOINTS ─────────────────────────────────────────────────
+
+# ENDPOINT 1 ── POST /api/interview/start
 @router.post(
     "/start",
     response_model=InterviewSessionResponse,
@@ -66,11 +77,17 @@ async def start_session(
     db: Session = Depends(get_db)
 ):
     """
-    Start a new interview session.
+    Start a new mock interview session for a given job listing.
+
+    - Validates the job exists in the database.
+    - Creates a session record and generates the first question.
+    - Returns the session_id and the opening question.
     """
-    logger.info(f"User {current_user.id} requested to start interview for job {request.job_id}")
-    
-    # Rate Limit Validation
+    logger.info(
+        f"User {current_user.id} requested to start interview for job {request.job_id}"
+    )
+
+    # Enforce rate limit before any heavy processing
     if not check_rate_limit(current_user.id):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -98,7 +115,7 @@ async def start_session(
         )
 
 
-# ENDPOINT 2: POST /api/interview/answer
+# ENDPOINT 2 ── POST /api/interview/answer
 @router.post(
     "/answer",
     response_model=InterviewAnswerResponse,
@@ -110,18 +127,24 @@ async def submit_answer(
     db: Session = Depends(get_db)
 ):
     """
-    Submit candidate answer to current interview question.
+    Submit the candidate's answer to the current interview question.
+
+    - Verifies the session belongs to the authenticated user.
+    - Evaluates the answer with Gemini and stores feedback.
+    - Returns the next question or signals interview completion.
     """
-    logger.info(f"User {current_user.id} submitted answer for session {request.session_id}")
-    
-    # Rate Limit Validation
+    logger.info(
+        f"User {current_user.id} submitted answer for session {request.session_id}"
+    )
+
+    # Enforce rate limit
     if not check_rate_limit(current_user.id):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit exceeded. Maximum 5 requests per minute allowed."
         )
 
-    # Validate session exists and belongs to user
+    # Validate session exists and is owned by the current user
     session = db.query(InterviewSession).filter(
         InterviewSession.session_id == request.session_id
     ).first()
@@ -142,13 +165,17 @@ async def submit_answer(
             user_answer=request.answer,
             db=db
         )
-        
+
         return InterviewAnswerResponse(
             session_id=res["session_id"],
             next_question=res["next_question"],
             feedback=res["feedback"],
             interview_complete=res["interview_complete"],
-            message="Interview completed." if res["interview_complete"] else "Response processed successfully."
+            message=(
+                "Interview completed."
+                if res["interview_complete"]
+                else "Response processed successfully."
+            )
         )
     except HTTPException as he:
         raise he
@@ -160,7 +187,7 @@ async def submit_answer(
         )
 
 
-# ENDPOINT 3: GET /api/interview/feedback
+# ENDPOINT 3 ── GET /api/interview/feedback
 @router.get(
     "/feedback",
     response_model=FeedbackSummaryWithDetails,
@@ -172,11 +199,17 @@ async def get_feedback(
     db: Session = Depends(get_db)
 ):
     """
-    Retrieve aggregated metrics and single feedback records for a completed/active interview.
-    """
-    logger.info(f"User {current_user.id} requested feedback summary for session {sessionId}")
+    Retrieve aggregated metrics and per-question feedback for an interview session.
 
-    # Validate session ownership
+    Returns:
+      - summary: overall score, averages, top strengths/improvements, LLM recommendations
+      - feedback: ordered list of per-question feedback records
+    """
+    logger.info(
+        f"User {current_user.id} requested feedback summary for session {sessionId}"
+    )
+
+    # Validate session ownership before returning any data
     session = db.query(InterviewSession).filter(
         InterviewSession.session_id == sessionId
     ).first()
@@ -192,10 +225,10 @@ async def get_feedback(
         )
 
     try:
-        # Get metrics summary
+        # Get aggregated metrics summary
         summary = await get_session_summary(session_id=sessionId, db=db)
-        
-        # Get detailed feedback list
+
+        # Get all per-question feedback records in chronological order
         feedback_list = db.query(InterviewFeedback).filter(
             InterviewFeedback.session_id == sessionId
         ).order_by(InterviewFeedback.created_at.asc()).all()
@@ -214,7 +247,7 @@ async def get_feedback(
         )
 
 
-# ENDPOINT 4: GET /api/interview/history
+# ENDPOINT 4 ── GET /api/interview/history
 @router.get(
     "/history",
     response_model=List[InterviewMessage],
@@ -228,9 +261,14 @@ async def get_history(
     db: Session = Depends(get_db)
 ):
     """
-    Fetch paginated chat messages from session history (newest first).
+    Fetch paginated chat messages from a session's history (newest first).
+
+    Supports skip/limit pagination. Returns InterviewMessage objects with
+    role, content, and timestamp fields.
     """
-    logger.info(f"User {current_user.id} requested chat history for session {sessionId}")
+    logger.info(
+        f"User {current_user.id} requested chat history for session {sessionId}"
+    )
 
     # Validate session ownership
     session = db.query(InterviewSession).filter(
@@ -247,46 +285,53 @@ async def get_history(
             detail="Access Denied: Session belongs to a different candidate."
         )
 
-    # Fetch messages, reverse to list newest first, and apply pagination
+    # Convert raw JSON messages to typed InterviewMessage objects
     messages_history = session.messages_json or []
-    # Convert list elements to InterviewMessage objects
     formatted_messages = []
     for msg in messages_history:
         formatted_messages.append(InterviewMessage(
             role=msg.get("role", "assistant"),
             content=msg.get("content", ""),
-            timestamp=msg.get("timestamp") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            timestamp=(
+                msg.get("timestamp")
+                or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            )
         ))
 
-    # Reverse to return newest first
+    # Reverse so newest messages come first, then paginate
     formatted_messages.reverse()
-    
-    # Paginate
-    paginated_messages = formatted_messages[skip:skip + limit]
-    return paginated_messages
+    return formatted_messages[skip:skip + limit]
+
+
+# ─── STUDY COACH REQUEST MODELS ───────────────────────────────────────────────
+
+class StudyPlanRequest(BaseModel):
+    """Request body for creating a new study plan session."""
+    job_id: str
+    skill: str
+    user_level: str  # "Beginner", "Intermediate", or "Expert"
+
+
+class InteractionRequest(BaseModel):
+    """Request body for interacting with the study coach."""
+    session_id: str
+    action: str    # "go_deeper", "move_next", or "jump_to_topic"
+    message: str = ""
 
 
 # ─── STUDY COACH ENDPOINTS ────────────────────────────────────────────────────
 
-class StudyPlanRequest(BaseModel):
-    job_id: str
-    skill: str
-    user_level: str  # "Beginner", "Intermediate", "Expert"
-
-
-class InteractionRequest(BaseModel):
-    session_id: str
-    action: str  # "go_deeper" or "move_next"
-    message: str = ""
-
-
+# ENDPOINT 5 ── POST /api/interview/study/plan
 @router.post("/study/plan", status_code=200)
 async def create_study_plan(
     request: StudyPlanRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Generate a personalised study plan for a selected skill and level."""
+    """
+    Generate a personalised study plan for a selected skill and experience level.
+    Returns session_id, topics list, and current_topic_index.
+    """
     return await generate_study_plan(
         user_id=current_user.id,
         job_id=request.job_id,
@@ -296,26 +341,34 @@ async def create_study_plan(
     )
 
 
+# ENDPOINT 6 ── POST /api/interview/study/teach
 @router.post("/study/teach", status_code=200)
 async def teach_current_topic(
     body: dict,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get explanation for the current topic in the study plan."""
+    """
+    Get an AI-generated explanation for the current topic in the study plan.
+    Expects JSON body: { "session_id": "..." }
+    """
     session_id = body.get("session_id")
     if not session_id:
         raise HTTPException(status_code=422, detail="session_id is required")
     return await teach_topic(session_id, db)
 
 
+# ENDPOINT 7 ── POST /api/interview/study/interact
 @router.post("/study/interact", status_code=200)
 async def interact_with_coach(
     request: InteractionRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Handle user interaction: go_deeper or move_next."""
+    """
+    Handle a study coach interaction: go_deeper, move_next, or jump_to_topic.
+    The 'message' field carries user follow-up text or topic index for jump_to_topic.
+    """
     return await handle_interaction(
         session_id=request.session_id,
         action=request.action,
@@ -324,42 +377,53 @@ async def interact_with_coach(
     )
 
 
+# ENDPOINT 8 ── GET /api/interview/study/resume/{session_id}
 @router.get("/study/resume/{session_id}", status_code=200)
 async def resume_study_session(
     session_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Resume a previous study session."""
+    """
+    Resume a previous study session.
+    Returns current progress including topics, current index, and full message history.
+    """
     return await resume_session(session_id, db)
 
 
+# ENDPOINT 9 ── GET /api/interview/study/user-sessions
 @router.get("/study/user-sessions", status_code=200)
 async def get_user_study_sessions(
-    job_id: str = Query(None),
-    skill: str = Query(None),
+    job_id: str = Query(None, description="Filter sessions by job UUID"),
+    skill: str = Query(None, description="Filter sessions by skill name"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all active study sessions for the user.
-    - With skill param: returns single session for that skill.
-    - Without skill: returns dict of all sessions keyed by skill.
+    """
+    Get all active study sessions for the authenticated user.
+
+    - With `skill` param: returns the most recent session for that skill.
+    - Without `skill`: returns a dict of all sessions keyed by skill name.
+    - Optionally filter by `job_id` (must be a valid UUID).
     """
     import uuid
+
+    # Base query: active study sessions for this user (skill_focus must be set)
     query = db.query(InterviewSession).filter(
         InterviewSession.user_id == current_user.id,
         InterviewSession.skill_focus.isnot(None),
         InterviewSession.status == "active"
     )
-    # Filter by job_id if valid UUID
+
+    # Filter by job_id if a valid UUID is provided
     if job_id:
         try:
             uuid.UUID(str(job_id))
             query = query.filter(InterviewSession.job_id == job_id)
         except ValueError:
-            pass  # non-UUID job_id — skip filter
+            pass  # Non-UUID job_id — skip filter
 
-    # Filter by skill if provided
+    # Return single session for a specific skill
     if skill:
         session = query.filter(
             InterviewSession.skill_focus == skill
@@ -375,7 +439,7 @@ async def get_user_study_sessions(
             "status": session.status
         }
 
-    # Return all sessions keyed by skill (most recent per skill)
+    # Return all sessions grouped by skill (most recent per skill)
     sessions = query.order_by(InterviewSession.started_at.desc()).all()
     result = {}
     for s in sessions:

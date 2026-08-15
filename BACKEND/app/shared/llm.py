@@ -1,25 +1,24 @@
 import dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
-from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 import logging
 from app.config import settings
 from app.shared.exceptions import AIServiceError
-import time
-import json
 import asyncio
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 import os
-import dotenv
 
 dotenv.load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Global client cache
+
+# ─── CLIENT INITIALIZATION ────────────────────────────────────────────────────
+# Global cached Gemini client (avoids re-initialising on every request)
 _gemini_client = None
 
 try:
+    # Default global LLM instance used by the interview chains module
     llm = ChatGoogleGenerativeAI(
         model="gemini-2.0-flash",
         google_api_key=os.getenv("GOOGLE_API_KEY_INTERVIEW"),
@@ -33,17 +32,25 @@ try:
 except Exception:
     llm = None
 
+
 def get_gemini_client() -> ChatGoogleGenerativeAI:
-    """Lazy load and cache Gemini client."""
+    """
+    Lazy-load and cache a Gemini client using the configured API key.
+    Raises AIServiceError if the key is missing or initialisation fails.
+    """
     global _gemini_client
     if _gemini_client is not None:
         return _gemini_client
-    
+
     try:
-        api_key = os.getenv("GOOGLE_API_KEY_INTERVIEW") or settings.GOOGLE_API_KEY or settings.gemini_api_key
+        api_key = (
+            os.getenv("GOOGLE_API_KEY_INTERVIEW")
+            or settings.GOOGLE_API_KEY
+            or settings.gemini_api_key
+        )
         if not api_key:
             raise ValueError("Google API key is not configured")
-            
+
         _gemini_client = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             google_api_key=api_key,
@@ -59,6 +66,9 @@ def get_gemini_client() -> ChatGoogleGenerativeAI:
         logger.error(f"Failed to initialize ChatGoogleGenerativeAI: {e}", exc_info=True)
         raise AIServiceError(f"Failed to initialize AI client: {str(e)}")
 
+
+# ─── GEMINI API CALL ──────────────────────────────────────────────────────────
+
 async def call_gemini(
     prompt: str,
     system_context: str = "",
@@ -68,17 +78,37 @@ async def call_gemini(
     custom_api_key: str = None
 ) -> str:
     """
-    Call Gemini with retry logic, exponential backoff, and rate limit handling.
+    Call the Gemini API with retry logic, exponential back-off, and
+    rate-limit handling.
+
+    Args:
+        prompt:          The user-facing prompt text.
+        system_context:  Optional system instruction for the LLM.
+        temperature:     Sampling temperature (0.0 – 1.0).
+        max_tokens:      Maximum output tokens.
+        max_retries:     How many times to retry on transient errors.
+        custom_api_key:  Use a specific API key instead of the default.
+
+    Returns:
+        The raw string content from the Gemini response.
+
+    Raises:
+        AIServiceError: On rate-limit exhaustion or unrecoverable errors.
     """
     if not prompt or not prompt.strip():
         raise ValueError("Prompt cannot be empty")
 
-    # Get standard client
+    # Obtain the standard cached client
     client = get_gemini_client()
-    
-    # If custom key or custom temperature/tokens are requested, instantiate a configured client
+
+    # Re-instantiate with custom settings if non-defaults are requested
     if custom_api_key or temperature != 0.7 or max_tokens != 2048:
-        api_key = custom_api_key or os.getenv("GOOGLE_API_KEY_INTERVIEW") or settings.GOOGLE_API_KEY or settings.gemini_api_key
+        api_key = (
+            custom_api_key
+            or os.getenv("GOOGLE_API_KEY_INTERVIEW")
+            or settings.GOOGLE_API_KEY
+            or settings.gemini_api_key
+        )
         client = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             google_api_key=api_key,
@@ -91,31 +121,30 @@ async def call_gemini(
             request_timeout=30
         )
 
-    messages = []
+    # Build message list (system + user)
+    messages: List[BaseMessage] = []
     if system_context:
         messages.append(SystemMessage(content=system_context))
     messages.append(HumanMessage(content=prompt))
 
     attempt = 1
-    rate_limited_retried = False
-    
+
     while attempt <= max_retries:
         try:
             logger.info(
                 f"Calling Gemini API (Attempt {attempt}/{max_retries}). "
                 f"Prompt (truncated): {prompt[:100]}..."
             )
-            # Use standard ainvoke (async invoke)
+            # Async invocation
             response = await client.ainvoke(messages)
             content = response.content
-            
-            # Log call (truncated for privacy)
+
             logger.info(
                 f"Gemini call success. Model: {client.model}. "
                 f"Response (truncated): {content[:100]}..."
             )
             return content
-            
+
         except Exception as e:
             error_msg = str(e)
             error_class = e.__class__.__name__
@@ -123,32 +152,34 @@ async def call_gemini(
                 f"Gemini call failed (attempt {attempt}/{max_retries}). "
                 f"Error: {error_class} - {error_msg}"
             )
-            
-            # Check for Rate Limits (ResourceExhausted / HTTP 429)
+
+            # ── Rate Limit Handling (HTTP 429 / ResourceExhausted) ────────────
             is_rate_limit = (
-                "429" in error_msg or 
-                "ResourceExhausted" in error_msg or 
-                "rate limit" in error_msg.lower() or
-                "ResourceExhausted" in error_class
+                "429" in error_msg
+                or "ResourceExhausted" in error_msg
+                or "rate limit" in error_msg.lower()
+                or "ResourceExhausted" in error_class
             )
-            
+
             if is_rate_limit and attempt < max_retries:
-                sleep_time = (2 ** attempt) + 3 # Backoff: 5s, 7s, 11s
+                sleep_time = (2 ** attempt) + 3  # 5s → 7s → 11s back-off
                 logger.info(f"Rate limit hit. Sleeping for {sleep_time}s and retrying...")
                 await asyncio.sleep(sleep_time)
                 attempt += 1
                 continue
             elif is_rate_limit:
-                raise AIServiceError(f"Gemini rate limit exceeded after {max_retries} retries: {error_msg}")
-            
-            # Check for Connection or Timeout Errors
+                raise AIServiceError(
+                    f"Gemini rate limit exceeded after {max_retries} retries: {error_msg}"
+                )
+
+            # ── Connection / Timeout Handling ─────────────────────────────────
             is_timeout_or_conn = (
-                "timeout" in error_msg.lower() or 
-                "connection" in error_msg.lower() or
-                "api connection" in error_msg.lower() or
-                "deadline" in error_msg.lower()
+                "timeout" in error_msg.lower()
+                or "connection" in error_msg.lower()
+                or "api connection" in error_msg.lower()
+                or "deadline" in error_msg.lower()
             )
-            
+
             if is_timeout_or_conn and attempt < max_retries:
                 sleep_time = 2 ** attempt
                 logger.info(f"Connection/timeout error. Backing off for {sleep_time}s...")
@@ -156,63 +187,10 @@ async def call_gemini(
                 attempt += 1
                 continue
             else:
-                logger.error(f"Final failure or unhandled exception during Gemini call: {error_class} - {error_msg}")
+                logger.error(
+                    f"Final failure or unhandled exception during Gemini call: "
+                    f"{error_class} - {error_msg}"
+                )
                 raise AIServiceError(f"Gemini LLM call failed: {error_msg}")
-                
+
     raise AIServiceError("Gemini call failed after maximum retries")
-
-async def call_gemini_json(
-    prompt: str,
-    system_context: str = "",
-    temperature: float = 0.7
-) -> dict:
-    """
-    Call Gemini expecting a JSON response.
-    """
-    json_system_context = system_context
-    json_instruction = "Respond with valid JSON only, no preamble."
-    if json_instruction not in json_system_context:
-        if json_system_context:
-            json_system_context += f"\n{json_instruction}"
-        else:
-            json_system_context = json_instruction
-
-    response_text = await call_gemini(
-        prompt=prompt,
-        system_context=json_system_context,
-        temperature=temperature
-    )
-    
-    # Strip markdown code block notation if present
-    cleaned_text = response_text.strip()
-    if cleaned_text.startswith("```json"):
-        cleaned_text = cleaned_text[7:]
-    elif cleaned_text.startswith("```"):
-        cleaned_text = cleaned_text[3:]
-        
-    if cleaned_text.endswith("```"):
-        cleaned_text = cleaned_text[:-3]
-        
-    cleaned_text = cleaned_text.strip()
-    
-    try:
-        return json.loads(cleaned_text)
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse JSON from AI response: {response_text}. Error: {e}")
-        raise AIServiceError(f"Invalid JSON response: {str(e)}")
-
-def create_prompt_template(system_template: str, input_variables: List[str]) -> ChatPromptTemplate:
-    """Create reusable prompt template."""
-    system_message_prompt = SystemMessagePromptTemplate.from_template(system_template)
-    
-    # Use "{question}" or fallback based on input variables
-    human_var = "question"
-    if "question" in input_variables:
-        human_var = "question"
-    elif "query" in input_variables:
-        human_var = "query"
-    elif len(input_variables) > 0:
-        human_var = input_variables[-1]
-        
-    human_message_prompt = HumanMessagePromptTemplate.from_template(f"{{{human_var}}}")
-    return ChatPromptTemplate.from_messages([system_message_prompt, human_message_prompt])

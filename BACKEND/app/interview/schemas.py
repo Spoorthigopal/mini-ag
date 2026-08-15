@@ -3,8 +3,10 @@ from typing import List, Optional
 from datetime import datetime
 
 
+# ─── REQUEST SCHEMAS ──────────────────────────────────────────────────────────
+
 class InterviewStartRequest(BaseModel):
-    """Request to initiate an interview session for a specific job."""
+    """Request body to initiate a new mock interview session for a specific job."""
     job_id: str = Field(..., description="ID of the internship/job to interview for")
 
     class Config:
@@ -14,9 +16,12 @@ class InterviewStartRequest(BaseModel):
 
 
 class InterviewAnswerRequest(BaseModel):
-    """Capture user's answer to an interview question."""
+    """Request body to submit the candidate's answer to the current question."""
     session_id: str = Field(..., description="Active interview session ID")
-    answer: str = Field(..., min_length=1, max_length=5000, description="User's answer to the current question")
+    answer: str = Field(
+        ..., min_length=1, max_length=5000,
+        description="User's answer to the current question"
+    )
 
     class Config:
         json_schema_extra = {
@@ -27,8 +32,13 @@ class InterviewAnswerRequest(BaseModel):
         }
 
 
+# ─── SHARED MODELS ────────────────────────────────────────────────────────────
+
 class InterviewMessage(BaseModel):
-    """Store a single conversation turn in the interview."""
+    """
+    Represents a single turn in the interview conversation.
+    role: 'assistant' for interviewer questions, 'user' for candidate answers.
+    """
     role: str = Field(..., description="Role: 'assistant' (coach) or 'user' (candidate)")
     content: str = Field(..., description="Message content")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
@@ -43,16 +53,29 @@ class InterviewMessage(BaseModel):
         }
 
 
+# ─── FEEDBACK SCHEMAS ─────────────────────────────────────────────────────────
+
 class InterviewFeedback(BaseModel):
-    """Detailed feedback on each interview answer."""
+    """
+    Per-question feedback returned after evaluating a candidate's answer.
+    All score fields are on a 0.0 – 10.0 scale.
+    """
     question: str
     user_answer: str
-    technical_accuracy: float = Field(..., ge=0.0, le=10.0, description="Technical correctness score (0-10)")
-    communication_clarity: float = Field(..., ge=0.0, le=10.0, description="Clarity of communication score (0-10)")
-    relevance_to_job: float = Field(..., ge=0.0, le=10.0, description="Relevance to job role score (0-10)")
+    technical_accuracy: float = Field(
+        ..., ge=0.0, le=10.0, description="Technical correctness score (0-10)"
+    )
+    communication_clarity: float = Field(
+        ..., ge=0.0, le=10.0, description="Clarity of communication score (0-10)"
+    )
+    relevance_to_job: float = Field(
+        ..., ge=0.0, le=10.0, description="Relevance to job role score (0-10)"
+    )
     strengths: List[str] = Field(default_factory=list)
     improvement_areas: List[str] = Field(default_factory=list)
-    sample_better_answer: str = Field(default="", description="Example of a stronger answer")
+    sample_better_answer: str = Field(
+        default="", description="Example of a stronger answer"
+    )
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:
@@ -72,11 +95,13 @@ class InterviewFeedback(BaseModel):
         }
 
 
+# ─── RESPONSE SCHEMAS ─────────────────────────────────────────────────────────
+
 class InterviewSessionResponse(BaseModel):
-    """API response for interview interactions."""
+    """API response returned when a new interview session is successfully created."""
     session_id: str
     message: str
-    question: str
+    question: str   # The first question generated for the candidate
 
     class Config:
         json_schema_extra = {
@@ -89,23 +114,29 @@ class InterviewSessionResponse(BaseModel):
 
 
 class InterviewAnswerResponse(BaseModel):
-    """Response after submitting an answer."""
+    """
+    API response returned after the candidate submits an answer.
+    interview_complete=True signals the final question has been answered.
+    """
     session_id: str
-    next_question: Optional[str] = None
+    next_question: Optional[str] = None       # None when interview is complete
     feedback: Optional[InterviewFeedback] = None
     interview_complete: bool = False
     message: str = ""
 
 
 class InterviewSummary(BaseModel):
-    """Aggregated summary of a completed interview session."""
+    """
+    Aggregated performance summary for a completed interview session.
+    Scores are on a 0-100 scale for overall_score; 0-10 for averages.
+    """
     session_id: str
     total_questions: int
-    overall_score: float
-    technical_average: float
-    communication_average: float
-    relevance_average: float
-    strengths: List[str]
-    improvements: List[str]
-    recommendations: str
-    job_fit_assessment: str
+    overall_score: float          # 0-100 composite score
+    technical_average: float      # 0-10
+    communication_average: float  # 0-10
+    relevance_average: float      # 0-10
+    strengths: List[str]          # Top recurring strengths across all questions
+    improvements: List[str]       # Top recurring improvement areas
+    recommendations: str          # LLM-generated next-steps advice
+    job_fit_assessment: str       # LLM-generated role readiness assessment

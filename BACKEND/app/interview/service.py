@@ -15,10 +15,16 @@ from fastapi import HTTPException, status
 logger = logging.getLogger(__name__)
 
 
+# ─── MOCK INTERVIEW FUNCTIONS ─────────────────────────────────────────────────
+
 async def start_interview(user_id: str, job_id: str, db: Session) -> dict:
     """
     Start a new mock interview session.
-    Validates user and job, creates the session, generates the first question, and stores it.
+
+    - Validates that both the user and job exist in the database.
+    - Creates an InterviewSession record with status='active'.
+    - Generates the first interview question via the LangChain chain.
+    - Stores the first assistant message and returns the session details.
     """
     try:
         # Validate user exists
@@ -37,7 +43,7 @@ async def start_interview(user_id: str, job_id: str, db: Session) -> dict:
                 detail=f"Job with ID {job_id} not found"
             )
 
-        # Create active Interview Session
+        # Create active interview session record
         session_uuid = str(uuid.uuid4())
         session = InterviewSession(
             user_id=user_id,
@@ -51,24 +57,35 @@ async def start_interview(user_id: str, job_id: str, db: Session) -> dict:
         db.commit()
         db.refresh(session)
 
-        # Build initial job context for first question
+        # Build job context dict for the interview chain prompt
         job_context = {
             "job_title": job.job_title,
             "company": job.company_name,
-            "required_skills": ", ".join(job.required_skills) if job.required_skills else "General technical skills",
-            "experience_level": "Junior/Intern" if not job.duration_months else f"{job.duration_months} months dur",
-            "key_responsibilities": job.job_description[:500] if job.job_description else "General development duties"
+            "required_skills": (
+                ", ".join(job.required_skills)
+                if job.required_skills
+                else "General technical skills"
+            ),
+            "experience_level": (
+                "Junior/Intern"
+                if not job.duration_months
+                else f"{job.duration_months} months dur"
+            ),
+            "key_responsibilities": (
+                job.job_description[:500]
+                if job.job_description
+                else "General development duties"
+            )
         }
 
-        # Generate first question (starting the conversation helper)
-        # We pass empty history and prompt for the first question
+        # Generate the first interview question (empty history, greeting input)
         _, first_question = await run_interview_chain(
             job_context=job_context,
             messages_history=[],
             user_input="Hello! I am ready to start my mock interview."
         )
 
-        # Store first assistant message in session
+        # Persist first assistant message to session history
         first_msg = {
             "role": "assistant",
             "content": f"QUESTION: {first_question}",
@@ -99,7 +116,18 @@ async def evaluate_single_answer(
     user_answer: str,
     job_title: str
 ) -> dict:
-    """Evaluate a single user answer using Gemini."""
+    """
+    Evaluate a single candidate answer using Gemini.
+
+    Returns a dict with:
+      - technical_accuracy (float 0-10)
+      - communication_clarity (float 0-10)
+      - relevance_to_job (float 0-10)
+      - strengths (list[str])
+      - improvement_areas (list[str])
+      - sample_better_answer (str)
+    Falls back to default scores (6.0) on any parsing error.
+    """
     prompt = f"""You are an expert interview coach evaluating a candidate's answer for a {job_title} role.
 Question: {question}
 Candidate's Answer: {user_answer}
@@ -116,7 +144,11 @@ Provide feedback strictly as a JSON object with this structure:
 Do not write anything else besides the raw JSON object.
 """
     try:
-        response = await call_gemini(prompt, system_context="You are a strict, helpful AI interviewer.")
+        response = await call_gemini(
+            prompt,
+            system_context="You are a strict, helpful AI interviewer."
+        )
+        # Extract JSON block from response
         start = response.find("{")
         end = response.rfind("}") + 1
         if start != -1 and end > start:
@@ -131,7 +163,8 @@ Do not write anything else besides the raw JSON object.
             }
     except Exception as e:
         logger.error(f"Error evaluating single answer: {e}")
-        
+
+    # Default fallback scores if evaluation fails
     return {
         "technical_accuracy": 6.0,
         "communication_clarity": 6.0,
@@ -144,10 +177,18 @@ Do not write anything else besides the raw JSON object.
 
 async def process_answer(session_id: str, user_answer: str, db: Session) -> dict:
     """
-    Process candidate response: evaluates answer, saves feedback, check limits, generates next question.
+    Process a candidate's answer to the current interview question.
+
+    Flow:
+      1. Validate the session is active and not expired (>1 hour).
+      2. Identify the last question asked.
+      3. Append the candidate's answer to session history.
+      4. Evaluate the answer with Gemini and store an InterviewFeedback record.
+      5. If 7 questions have been answered, mark the session 'completed'.
+      6. Otherwise, generate the next question and append it to history.
     """
     try:
-        # Fetch active session
+        # Fetch and validate the active session
         session = db.query(InterviewSession).filter(
             InterviewSession.session_id == session_id
         ).first()
@@ -164,7 +205,7 @@ async def process_answer(session_id: str, user_answer: str, db: Session) -> dict
                 detail="Interview session is not active"
             )
 
-        # Check session expiry (> 1 hour since started)
+        # Expire sessions that have exceeded the 1-hour time limit
         if datetime.utcnow() - session.started_at > timedelta(hours=1):
             session.status = "expired"
             db.commit()
@@ -173,19 +214,20 @@ async def process_answer(session_id: str, user_answer: str, db: Session) -> dict
                 detail="Interview session has expired (max 1 hour limit exceeded)"
             )
 
-        # Identify last question asked to candidate
+        # Identify the last question posed by the assistant
         last_question = "Tell me about yourself."
         messages = list(session.messages_json or [])
         for msg in reversed(messages):
             if msg.get("role") == "assistant":
                 content = msg.get("content", "")
-                if content.startswith("QUESTION:"):
-                    last_question = content[len("QUESTION:"):].strip()
-                else:
-                    last_question = content.strip()
+                last_question = (
+                    content[len("QUESTION:"):].strip()
+                    if content.startswith("QUESTION:")
+                    else content.strip()
+                )
                 break
 
-        # Append candidate response to session's messages
+        # Append candidate response to session history
         messages.append({
             "role": "user",
             "content": user_answer,
@@ -194,14 +236,13 @@ async def process_answer(session_id: str, user_answer: str, db: Session) -> dict
         session.messages_json = messages
         db.commit()
 
-        # Fetch job information for context
+        # Fetch job info to provide role-specific context during evaluation
         job = db.query(InternshipJob).filter(InternshipJob.id == session.job_id).first()
         job_title = job.job_title if job else "Software Developer"
 
-        # Evaluate response in real time
+        # Evaluate the answer and store feedback record
         feedback_eval = await evaluate_single_answer(last_question, user_answer, job_title)
 
-        # Store feedback record in database
         feedback = InterviewFeedback(
             session_id=session_id,
             question=last_question,
@@ -217,12 +258,12 @@ async def process_answer(session_id: str, user_answer: str, db: Session) -> dict
         db.commit()
         db.refresh(feedback)
 
-        # Count total answered questions to determine termination (5-7 questions)
+        # Count answered questions to check against the 7-question limit
         total_questions = db.query(InterviewFeedback).filter(
             InterviewFeedback.session_id == session_id
         ).count()
 
-        # Complete interview if question threshold (7) is met
+        # Mark session complete after 7 questions
         if total_questions >= 7:
             session.status = "completed"
             session.ended_at = datetime.utcnow()
@@ -235,23 +276,35 @@ async def process_answer(session_id: str, user_answer: str, db: Session) -> dict
                 "interview_complete": True
             }
 
-        # Otherwise, run chain to get next question
+        # Build job context for next question generation
         job_context = {
             "job_title": job.job_title if job else "Software Developer",
             "company": job.company_name if job else "the company",
-            "required_skills": ", ".join(job.required_skills) if (job and job.required_skills) else "General technical skills",
-            "experience_level": "Junior/Intern" if not (job and job.duration_months) else f"{job.duration_months} months dur",
-            "key_responsibilities": job.job_description[:500] if (job and job.job_description) else "General development duties"
+            "required_skills": (
+                ", ".join(job.required_skills)
+                if (job and job.required_skills)
+                else "General technical skills"
+            ),
+            "experience_level": (
+                "Junior/Intern"
+                if not (job and job.duration_months)
+                else f"{job.duration_months} months dur"
+            ),
+            "key_responsibilities": (
+                job.job_description[:500]
+                if (job and job.job_description)
+                else "General development duties"
+            )
         }
 
-        # Query LangChain components
+        # Generate the next interview question via the LangChain chain
         _, next_question_text = await run_interview_chain(
             job_context=job_context,
             messages_history=messages,
             user_input=user_answer
         )
 
-        # Append assistant next question to session's messages
+        # Append next question to session history
         messages.append({
             "role": "assistant",
             "content": f"QUESTION: {next_question_text}",
@@ -280,9 +333,15 @@ async def process_answer(session_id: str, user_answer: str, db: Session) -> dict
 
 async def get_session_summary(session_id: str, db: Session) -> dict:
     """
-    Fetch all feedback entries, calculate metrics, and output aggregated mock interview statistics.
+    Aggregate all feedback entries for a session into a summary report.
+
+    Calculates:
+      - Averages for technical accuracy, communication clarity, relevance
+      - Overall score on a 0-100 scale
+      - Top-3 recurring strengths and improvement areas
+      - LLM-generated recommendations and job-fit assessment
     """
-    # Verify session exists
+    # Verify the session exists
     session = db.query(InterviewSession).filter(
         InterviewSession.session_id == session_id
     ).first()
@@ -292,7 +351,7 @@ async def get_session_summary(session_id: str, db: Session) -> dict:
             detail=f"Interview session {session_id} not found"
         )
 
-    # Fetch all feedback entries
+    # Fetch all feedback records for the session
     feedback_entries = db.query(InterviewFeedback).filter(
         InterviewFeedback.session_id == session_id
     ).all()
@@ -300,18 +359,22 @@ async def get_session_summary(session_id: str, db: Session) -> dict:
     if not feedback_entries:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No feedback records found for this session. Complete at least one question first."
+            detail=(
+                "No feedback records found for this session. "
+                "Complete at least one question first."
+            )
         )
 
+    # Calculate per-metric averages
     total_q = len(feedback_entries)
     tech_avg = sum(f.technical_accuracy for f in feedback_entries) / total_q
     comm_avg = sum(f.communication_clarity for f in feedback_entries) / total_q
     rel_avg = sum(f.relevance_to_job for f in feedback_entries) / total_q
 
-    # Calculate overall rating on a 0-100 scale
+    # Overall score mapped to a 0-100 scale
     overall_score = ((tech_avg + comm_avg + rel_avg) / 3.0) * 10.0
 
-    # Aggregate strengths and improvements
+    # Aggregate and rank recurring strengths and improvement areas
     strengths_pool = []
     improvements_pool = []
     for f in feedback_entries:
@@ -320,15 +383,20 @@ async def get_session_summary(session_id: str, db: Session) -> dict:
         if isinstance(f.improvement_areas, list):
             improvements_pool.extend(f.improvement_areas)
 
-    # Get top 3 strengths and improvements
-    top_strengths = [item for item, count in Counter(strengths_pool).most_common(3)]
-    top_improvements = [item for item, count in Counter(improvements_pool).most_common(3)]
+    top_strengths = [item for item, _ in Counter(strengths_pool).most_common(3)]
+    top_improvements = [item for item, _ in Counter(improvements_pool).most_common(3)]
 
-    # Make fallback values in case LLM summary call fails
-    recommendations = "Focus on structuring responses using the STAR method (Situation, Task, Action, Result)."
-    job_fit_assessment = "Shows appropriate fundamental skill set but needs minor refinement in communicating technical depth."
+    # Fallback text in case the Gemini summary call fails
+    recommendations = (
+        "Focus on structuring responses using the STAR method "
+        "(Situation, Task, Action, Result)."
+    )
+    job_fit_assessment = (
+        "Shows appropriate fundamental skill set but needs minor refinement "
+        "in communicating technical depth."
+    )
 
-    # Call Gemini to compile cohesive summary evaluations
+    # Ask Gemini for cohesive qualitative recommendations
     summary_prompt = f"""You are an expert interview coach summarizing a mock interview.
 Performance Metrics:
 - Total Questions: {total_q}
@@ -351,7 +419,10 @@ Format your response strictly as JSON:
 }}
 """
     try:
-        response = await call_gemini(summary_prompt, system_context="You are a professional HR evaluator.")
+        response = await call_gemini(
+            summary_prompt,
+            system_context="You are a professional HR evaluator."
+        )
         start = response.find("{")
         end = response.rfind("}") + 1
         if start != -1 and end > start:
@@ -375,57 +446,117 @@ Format your response strictly as JSON:
     }
 
 
-def cleanup_expired_sessions(db: Session) -> int:
-    """
-    Finds all active sessions older than 24 hours and marks them as expired.
-    Returns the count of modified sessions.
-    """
-    try:
-        cutoff = datetime.utcnow() - timedelta(hours=24)
-        expired_sessions = db.query(InterviewSession).filter(
-            InterviewSession.status == "active",
-            InterviewSession.started_at < cutoff
-        ).all()
-
-        count = len(expired_sessions)
-        for s in expired_sessions:
-            s.status = "expired"
-
-        db.commit()
-        return count
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error executing expired sessions cleanup: {e}")
-        return 0
-
-
 # ─── STUDY COACH FUNCTIONS ────────────────────────────────────────────────────
 
+# Static study plans used as fallback when Gemini is unavailable or rate-limited
 STATIC_PLANS = {
     "React": {
-        "Beginner": ["What is React and how browsers render UI", "JSX syntax and writing your first component", "Props: passing data between components", "State with useState hook", "Handling events and user input", "useEffect and side effects", "Fetching data from an API"],
-        "Intermediate": ["React component lifecycle deep-dive", "useContext and avoiding prop drilling", "useReducer for complex state", "Custom hooks and reusability", "React Router and navigation", "Performance with useMemo and useCallback", "React Query for server state"],
-        "Expert": ["Concurrent rendering and Suspense", "Server Components (React 18+)", "Code splitting and lazy loading", "Advanced patterns: compound components", "Testing with React Testing Library", "Micro-frontend architecture", "Performance profiling and optimization"],
+        "Beginner": [
+            "What is React and how browsers render UI",
+            "JSX syntax and writing your first component",
+            "Props: passing data between components",
+            "State with useState hook",
+            "Handling events and user input",
+            "useEffect and side effects",
+            "Fetching data from an API"
+        ],
+        "Intermediate": [
+            "React component lifecycle deep-dive",
+            "useContext and avoiding prop drilling",
+            "useReducer for complex state",
+            "Custom hooks and reusability",
+            "React Router and navigation",
+            "Performance with useMemo and useCallback",
+            "React Query for server state"
+        ],
+        "Expert": [
+            "Concurrent rendering and Suspense",
+            "Server Components (React 18+)",
+            "Code splitting and lazy loading",
+            "Advanced patterns: compound components",
+            "Testing with React Testing Library",
+            "Micro-frontend architecture",
+            "Performance profiling and optimization"
+        ],
     },
     "TypeScript": {
-        "Beginner": ["Types vs interfaces and when to use each", "Basic generics", "Union and intersection types", "Type narrowing and guards", "Working with arrays and tuples"],
-        "Intermediate": ["Utility types (Partial, Pick, Omit)", "Conditional types", "Template literal types", "Module augmentation", "Decorators and metadata"],
-        "Expert": ["Infer keyword and type inference tricks", "Higher-kinded types patterns", "Complex generic constraints", "Declaration files (.d.ts)", "TypeScript compiler API"],
+        "Beginner": [
+            "Types vs interfaces and when to use each",
+            "Basic generics",
+            "Union and intersection types",
+            "Type narrowing and guards",
+            "Working with arrays and tuples"
+        ],
+        "Intermediate": [
+            "Utility types (Partial, Pick, Omit)",
+            "Conditional types",
+            "Template literal types",
+            "Module augmentation",
+            "Decorators and metadata"
+        ],
+        "Expert": [
+            "Infer keyword and type inference tricks",
+            "Higher-kinded types patterns",
+            "Complex generic constraints",
+            "Declaration files (.d.ts)",
+            "TypeScript compiler API"
+        ],
     },
     "Python": {
-        "Beginner": ["Python data types and variables", "Control flow: if/else, loops", "Functions and scope", "Lists, dicts, sets and tuples", "File I/O and exceptions"],
-        "Intermediate": ["Object-oriented programming in Python", "List comprehensions and generators", "Decorators and closures", "Modules, packages and pip", "Working with APIs using requests"],
-        "Expert": ["Async/await with asyncio", "Metaclasses and descriptors", "Performance: profiling and optimisation", "C extensions and Cython basics", "Writing library-quality code"],
+        "Beginner": [
+            "Python data types and variables",
+            "Control flow: if/else, loops",
+            "Functions and scope",
+            "Lists, dicts, sets and tuples",
+            "File I/O and exceptions"
+        ],
+        "Intermediate": [
+            "Object-oriented programming in Python",
+            "List comprehensions and generators",
+            "Decorators and closures",
+            "Modules, packages and pip",
+            "Working with APIs using requests"
+        ],
+        "Expert": [
+            "Async/await with asyncio",
+            "Metaclasses and descriptors",
+            "Performance: profiling and optimisation",
+            "C extensions and Cython basics",
+            "Writing library-quality code"
+        ],
     },
     "SQL": {
-        "Beginner": ["SELECT, WHERE, ORDER BY basics", "JOINs: INNER, LEFT, RIGHT", "Aggregate functions: COUNT, SUM, AVG", "GROUP BY and HAVING", "INSERT, UPDATE, DELETE"],
-        "Intermediate": ["Subqueries and CTEs", "Window functions: ROW_NUMBER, RANK", "Indexes and query plans", "Transactions and ACID", "Stored procedures and triggers"],
-        "Expert": ["Query optimisation and execution plans", "Partitioning and sharding strategies", "Replication and high availability", "Full-text search", "Database normalisation to BCNF/4NF"],
+        "Beginner": [
+            "SELECT, WHERE, ORDER BY basics",
+            "JOINs: INNER, LEFT, RIGHT",
+            "Aggregate functions: COUNT, SUM, AVG",
+            "GROUP BY and HAVING",
+            "INSERT, UPDATE, DELETE"
+        ],
+        "Intermediate": [
+            "Subqueries and CTEs",
+            "Window functions: ROW_NUMBER, RANK",
+            "Indexes and query plans",
+            "Transactions and ACID",
+            "Stored procedures and triggers"
+        ],
+        "Expert": [
+            "Query optimisation and execution plans",
+            "Partitioning and sharding strategies",
+            "Replication and high availability",
+            "Full-text search",
+            "Database normalisation to BCNF/4NF"
+        ],
     },
 }
 
+
 def _get_static_plan(skill: str, level: str) -> list:
-    """Return a static study plan when Gemini is unavailable."""
+    """
+    Return a static study plan for the given skill and level.
+    Used as a fallback when Gemini quota is exhausted.
+    If skill/level combo is not found, returns a generic 5-topic plan.
+    """
     plan = STATIC_PLANS.get(skill, {}).get(level, None)
     if plan:
         return plan
@@ -445,23 +576,31 @@ async def generate_study_plan(
     user_level: str,
     db: Session
 ) -> dict:
-    """Create a personalized study plan session for the selected skill and level."""
+    """
+    Create a personalised study plan session for the selected skill and level.
+
+    - Calls Gemini to generate a 5-7 topic ordered plan.
+    - Falls back to STATIC_PLANS if Gemini is unavailable.
+    - Persists the plan as an InterviewSession with skill_focus set.
+    """
+    # Validate user exists
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # Optionally resolve the job by UUID
     job = None
     if job_id:
         try:
             uuid.UUID(str(job_id))
             job = db.query(InternshipJob).filter(InternshipJob.id == job_id).first()
         except ValueError:
-            pass
+            pass  # Non-UUID job_id — skip job lookup
 
     job_title = job.job_title if job else "Software Developer"
     valid_job_id = job.id if job else None
 
-    # Try Gemini first; fall back to static plan if quota is exceeded
+    # Try Gemini for a dynamic plan; fall back to static if quota exceeded
     topics = []
     try:
         prompt = f"""You are an expert educator and study plan designer.
@@ -472,8 +611,11 @@ Return ONLY a JSON array like this: ["Topic 1", "Topic 2", "Topic 3", "Topic 4",
 """
         try:
             raw = await call_gemini(
-                prompt, 
-                system_context="You are a curriculum designer. Respond with valid JSON only, no markdown blocks.", 
+                prompt,
+                system_context=(
+                    "You are a curriculum designer. "
+                    "Respond with valid JSON only, no markdown blocks."
+                ),
                 temperature=0.5,
                 max_retries=2,
                 custom_api_key="AIzaSyCLTCE_qh9EXFmZfozuiGEMdUetSSGb3dA"
@@ -482,10 +624,16 @@ Return ONLY a JSON array like this: ["Topic 1", "Topic 2", "Topic 3", "Topic 4",
             logger.error(f"LLM Error generating plan: {e}")
             raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
 
-        if raw.startswith("```json"): raw = raw[7:]
-        if raw.startswith("```"): raw = raw[3:]
-        if raw.endswith("```"): raw = raw[:-3]
+        # Strip possible markdown fences from response
+        if raw.startswith("```json"):
+            raw = raw[7:]
+        if raw.startswith("```"):
+            raw = raw[3:]
+        if raw.endswith("```"):
+            raw = raw[:-3]
         raw = raw.strip()
+
+        # Extract the JSON array
         start = raw.find("[")
         end = raw.rfind("]") + 1
         if start != -1 and end > start:
@@ -496,6 +644,7 @@ Return ONLY a JSON array like this: ["Topic 1", "Topic 2", "Topic 3", "Topic 4",
     if not topics:
         topics = _get_static_plan(skill, user_level)
 
+    # Persist the study session to the database
     session_uuid = str(uuid.uuid4())
     session = InterviewSession(
         user_id=user_id,
@@ -523,7 +672,13 @@ Return ONLY a JSON array like this: ["Topic 1", "Topic 2", "Topic 3", "Topic 4",
 
 
 async def teach_topic(session_id: str, db: Session) -> dict:
-    """Generate a rich explanation for the current topic in the session."""
+    """
+    Generate a rich, structured explanation for the current topic in the study plan.
+
+    Returns the topic explanation along with interview Q&A hints and a check-in question.
+    If all topics are complete, returns a congratulations message.
+    """
+    # Fetch the study session
     session = db.query(InterviewSession).filter(
         InterviewSession.session_id == session_id
     ).first()
@@ -533,11 +688,16 @@ async def teach_topic(session_id: str, db: Session) -> dict:
     topics = session.study_plan or []
     idx = session.current_topic_index or 0
 
+    # All topics completed — return celebration response
     if idx >= len(topics):
         return {
             "session_id": session_id,
             "topic": "All topics completed!",
-            "explanation": "🎉 **Congratulations!** You've completed the entire study plan. You should now have a solid understanding of the skill. Keep practising, and you'll do great in your interviews!",
+            "explanation": (
+                "🎉 **Congratulations!** You've completed the entire study plan. "
+                "You should now have a solid understanding of the skill. "
+                "Keep practising, and you'll do great in your interviews!"
+            ),
             "current_index": idx,
             "total_topics": len(topics),
             "is_complete": True
@@ -549,6 +709,7 @@ async def teach_topic(session_id: str, db: Session) -> dict:
     job = db.query(InternshipJob).filter(InternshipJob.id == session.job_id).first()
     job_title = job.job_title if job else "Software Developer"
 
+    # Build the teaching prompt with structured sections
     prompt = f"""You are a friendly tutor teaching "{topic}" to a {level} learning "{skill}" for a {job_title} role.
 
 **The Hook** (2 sentences): Start with a fun, relatable real-world analogy.
@@ -566,7 +727,10 @@ Be concise, warm, and human. Total response: ~350 words."""
     try:
         explanation = await call_gemini(
             prompt,
-            system_context="You are a friendly, expert programming tutor. Be concise but thorough. Use a conversational, human tone.",
+            system_context=(
+                "You are a friendly, expert programming tutor. "
+                "Be concise but thorough. Use a conversational, human tone."
+            ),
             temperature=0.7,
             max_tokens=700,
             max_retries=2,
@@ -574,14 +738,16 @@ Be concise, warm, and human. Total response: ~350 words."""
         )
     except Exception as e:
         logger.error(f"LLM Error in teach_topic: {e}")
-        raise HTTPException(status_code=500, detail=f"AI service error while teaching topic: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"AI service error while teaching topic: {str(e)}"
+        )
 
-
-    # Store in messages
+    # Append explanation to session message history
     messages = list(session.messages_json or [])
     messages.append({
         "role": "assistant",
-        "content": f"{explanation}",
+        "content": explanation,
         "timestamp": datetime.utcnow().isoformat(),
         "topic_index": idx
     })
@@ -604,7 +770,16 @@ async def handle_interaction(
     user_message: str,
     db: Session
 ) -> dict:
-    """Handle 'go_deeper' or 'move_next' actions from the user."""
+    """
+    Handle a user interaction with the study coach.
+
+    Supported actions:
+      - 'move_next'     — Advance to the next topic and teach it.
+      - 'go_deeper'     — Answer a follow-up question on the current topic.
+      - 'jump_to_topic' — Jump directly to a topic by index (index in user_message).
+
+    Raises HTTP 400 for invalid actions or out-of-range topic indices.
+    """
     session = db.query(InterviewSession).filter(
         InterviewSession.session_id == session_id
     ).first()
@@ -618,6 +793,7 @@ async def handle_interaction(
 
     messages = list(session.messages_json or [])
 
+    # ── move_next: advance to the next topic ──────────────────────────────────
     if action == "move_next":
         new_idx = idx + 1
         session.current_topic_index = new_idx
@@ -630,15 +806,15 @@ async def handle_interaction(
         db.commit()
         return await teach_topic(session_id, db)
 
+    # ── go_deeper: answer a follow-up question on the current topic ───────────
     elif action == "go_deeper":
-        # User asked a follow-up question on the current topic
         messages.append({
             "role": "user",
             "content": user_message,
             "timestamp": datetime.utcnow().isoformat()
         })
-        
-        # Build conversation context
+
+        # Build recent conversation context (last 3 turns)
         recent_history = "\n".join([
             f"{m['role'].capitalize()}: {m['content'][:300]}"
             for m in messages[-6:]
@@ -655,7 +831,10 @@ End with a short follow-up question. Be warm and concise (~250 words)."""
         try:
             response = await call_gemini(
                 prompt,
-                system_context="You are a friendly, expert tutor. Be concise, clear, and use a conversational tone.",
+                system_context=(
+                    "You are a friendly, expert tutor. "
+                    "Be concise, clear, and use a conversational tone."
+                ),
                 temperature=0.6,
                 max_tokens=600,
                 max_retries=2,
@@ -663,8 +842,10 @@ End with a short follow-up question. Be warm and concise (~250 words)."""
             )
         except Exception as e:
             logger.error(f"LLM Error in go_deeper: {e}")
-            raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
-
+            raise HTTPException(
+                status_code=500,
+                detail=f"AI service error: {str(e)}"
+            )
 
         messages.append({
             "role": "assistant",
@@ -684,8 +865,8 @@ End with a short follow-up question. Be warm and concise (~250 words)."""
             "action": "go_deeper"
         }
 
+    # ── jump_to_topic: jump directly to a specific topic index ───────────────
     elif action == "jump_to_topic":
-        # Jump to a specific topic index
         try:
             target_index = int(user_message)  # user_message holds the target index
         except (ValueError, TypeError):
@@ -696,17 +877,23 @@ End with a short follow-up question. Be warm and concise (~250 words)."""
         db.commit()
         return await teach_topic(session_id, db)
 
-    raise HTTPException(status_code=400, detail="Invalid action. Use 'go_deeper', 'move_next', or 'jump_to_topic'.")
+    raise HTTPException(
+        status_code=400,
+        detail="Invalid action. Use 'go_deeper', 'move_next', or 'jump_to_topic'."
+    )
 
 
 async def resume_session(session_id: str, db: Session) -> dict:
-    """Resume an existing study session."""
+    """
+    Resume an existing study session.
+    Returns session metadata including skill, level, topics, progress, and full history.
+    """
     session = db.query(InterviewSession).filter(
         InterviewSession.session_id == session_id
     ).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     return {
         "session_id": session_id,
         "skill": session.skill_focus,
